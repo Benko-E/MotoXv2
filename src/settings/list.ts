@@ -9,6 +9,30 @@ export const TABS: readonly string[] = ['MAP', 'RIDER', 'BIKE', 'AI']
  */
 export const SETTINGS: Setting[] = [
   {
+    kind: 'toggle',
+    id: 'showGrid',
+    name: 'Show grid',
+    tab: 'MAP',
+    section: 'View',
+    default: true,
+    hasDebug: false,
+    debugDefault: false,
+  },
+  {
+    kind: 'slider',
+    id: 'gridSpacing',
+    name: 'Grid spacing',
+    tab: 'MAP',
+    section: 'View',
+    min: 1,
+    max: 100,
+    step: 1,
+    default: 10,
+    unit: 'm',
+    hasDebug: false,
+    debugDefault: false,
+  },
+  {
     kind: 'slider',
     id: 'mapSize',
     name: 'Map size',

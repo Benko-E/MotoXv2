@@ -124,6 +124,12 @@ export class TerrainView {
     this.detailDistance = d
   }
 
+  /** The ground pattern (View → Show grid), lines every `spacing` metres. */
+  setPattern(on: boolean, spacing: number): void {
+    this.shared.pattern.value = on ? 1 : 0
+    this.shared.patternSpacing.value = spacing
+  }
+
   setShowGrid(on: boolean): void {
     this.shared.showGrid.value = on ? 1 : 0
     this.label.visible = on

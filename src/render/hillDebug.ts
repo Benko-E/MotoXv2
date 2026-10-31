@@ -9,12 +9,41 @@ import { hillRadius } from '../world/hills'
 import { makeLabel } from './label'
 
 /** Parts of the hill drawing; each setting's debug checkbox shows some of them. */
-export type HillPart = 'position' | 'facing' | 'height' | 'top' | 'runUp' | 'runDown'
+export type HillPart =
+  | 'position'
+  | 'facing'
+  | 'height'
+  | 'top'
+  | 'runUp'
+  | 'runDown'
+  | 'runUpFoot'
+  | 'runUpShoulder'
+  | 'runDownFoot'
+  | 'runDownShoulder'
+
+const ALL_PARTS: HillPart[] = [
+  'position',
+  'facing',
+  'height',
+  'top',
+  'runUp',
+  'runDown',
+  'runUpFoot',
+  'runUpShoulder',
+  'runDownFoot',
+  'runDownShoulder',
+]
 
 const PROFILE = 0xe8322c // the red line from the user's drawing
 const FRAME = 0x33dd33 // the green lines (base and pole)
 const LIFT = 0.3 // metres above the surface, so lines don't flicker into it
 const STEPS = 64
+const MESH = 0xffe14d // the yellow slope mesh (foot and shoulder)
+/** Slope mesh: lines down the slope across this many degrees either side of A or D. */
+const MESH_HALF_ANGLE = 75
+const MESH_DOWN_LINES = 9
+/** Rings across the slope per half (foot half, shoulder half). */
+const MESH_RINGS = 5
 
 /**
  * Debug drawing of the hill, as in the user's picture: the green base line
@@ -26,7 +55,7 @@ export class HillDebug {
   private readonly materials: LineMaterial[] = []
 
   constructor(scene: Scene) {
-    for (const part of ['position', 'facing', 'height', 'top', 'runUp', 'runDown'] as HillPart[]) {
+    for (const part of ALL_PARTS) {
       const group = new Group()
       this.parts.set(part, group)
       scene.add(group)
@@ -118,12 +147,47 @@ export class HillDebug {
       this.add(part, this.line(half, PROFILE, 2))
       const text = `${letter} · ${metres(length)} · foot ${shape.foot.toFixed(1)} · shoulder ${shape.shoulder.toFixed(1)}`
       this.add(part, this.label(text, foot.clone().setY(base + 3)))
+
+      // Slope mesh: the foot is the lower half of the slope, the shoulder the
+      // upper half, so each checkbox shows the part its number shapes.
+      this.slopeMesh(hill, dir, base, `${part}Foot` as HillPart, 0, 0.5)
+      this.slopeMesh(hill, dir, base, `${part}Shoulder` as HillPart, 0.5, 1)
     }
 
     if (this.size) this.setResolution(this.size.width, this.size.height)
   }
 
   private size: { width: number; height: number } | null = null
+
+  /**
+   * Yellow lines draped over one side between slope positions u0 and u1
+   * (0 = foot, 1 = top edge): lines running down the slope, and rings at
+   * even steps across it. Where the rings bunch up, the slope is steep.
+   */
+  private slopeMesh(hill: HillShape, dir: Vector3, base: number, part: HillPart, u0: number, u1: number): void {
+    const centre = Math.atan2(dir.x, -dir.z)
+    const half = (MESH_HALF_ANGLE * Math.PI) / 180
+    const at = (angle: number, u: number) => {
+      const d = new Vector3(Math.sin(angle), 0, -Math.cos(angle))
+      const r = hill.top + (1 - u) * (footRadius(hill, d) - hill.top)
+      const x = hill.x + d.x * r
+      const z = hill.z + d.z * r
+      return new Vector3(x, base + hillHeight(hill, x, z) + LIFT, z)
+    }
+    for (let i = 0; i < MESH_DOWN_LINES; i++) {
+      const angle = centre - half + (2 * half * i) / (MESH_DOWN_LINES - 1)
+      const points = []
+      for (let k = 0; k <= 16; k++) points.push(at(angle, u0 + ((u1 - u0) * k) / 16))
+      this.add(part, this.line(points, MESH, 1.5))
+    }
+    for (let j = 0; j <= MESH_RINGS; j++) {
+      const u = u0 + ((u1 - u0) * j) / MESH_RINGS
+      if (u <= 0 || u >= 1) continue // the foot outline and top ring are drawn already
+      const points = []
+      for (let k = 0; k <= 32; k++) points.push(at(centre - half + (2 * half * k) / 32, u))
+      this.add(part, this.line(points, MESH, 1.5))
+    }
+  }
 
   private add(part: HillPart, object: Object3D): void {
     this.parts.get(part)!.add(object)

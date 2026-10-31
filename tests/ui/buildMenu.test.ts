@@ -14,13 +14,13 @@ describe('buildMenu', () => {
     expect(names).toEqual(['MAP', 'RIDER', 'BIKE', 'AI'])
   })
 
-  it('puts Terrain, Detail and Features sections on the MAP page', () => {
+  it('puts View, Terrain, Detail and Features sections on the MAP page', () => {
     const page = tabs.page('MAP').el
     const titles = [...page.querySelectorAll('.menu-section-title')].map((t) => t.textContent)
-    expect(titles).toEqual(['Terrain', 'Detail', 'Features'])
+    expect(titles).toEqual(['View', 'Terrain', 'Detail', 'Features'])
     expect(page.querySelectorAll('.menu-row')).toHaveLength(SETTINGS.length)
-    expect([...rows.keys()].slice(0, 4)).toEqual(['mapSize', 'cellSize', 'detailDistance', 'wireframe'])
-    expect(page.querySelectorAll('.menu-toggle')).toHaveLength(1)
+    expect([...rows.keys()].slice(0, 6)).toEqual(['showGrid', 'gridSpacing', 'mapSize', 'cellSize', 'detailDistance', 'wireframe'])
+    expect(page.querySelectorAll('.menu-toggle')).toHaveLength(2)
   })
 
   it('Features has the seed above a row of feature tabs holding Hill', () => {

@@ -6,10 +6,20 @@ export type SharedGroundUniforms = {
   showGrid: IUniform<number>
   /** How strongly the LoD debug tint shows (0 = off). */
   tintAmount: IUniform<number>
+  /** The ground pattern (View → Show grid): 1 on, 0 off. */
+  pattern: IUniform<number>
+  /** Metres between the pattern's lines. */
+  patternSpacing: IUniform<number>
 }
 
 export function makeSharedGroundUniforms(): SharedGroundUniforms {
-  return { cellSize: { value: 1 }, showGrid: { value: 1 }, tintAmount: { value: 0 } }
+  return {
+    cellSize: { value: 1 },
+    showGrid: { value: 1 },
+    tintAmount: { value: 0 },
+    pattern: { value: 1 },
+    patternSpacing: { value: 10 },
+  }
 }
 
 /**
@@ -48,12 +58,31 @@ export function makeGridMaterial(shared: SharedGroundUniforms, tint: Color): Sha
       uniform vec3 sunDir;
       uniform vec3 tint;
       uniform float tintAmount;
+      uniform float pattern;
+      uniform float patternSpacing;
       varying vec3 vWorld;
       varying vec3 vNormal;
 
       void main() {
-        float light = 0.55 + 0.45 * max(dot(normalize(vNormal), sunDir), 0.0);
-        vec3 color = mix(groundColor, tint, tintAmount) * light;
+        // Slopes facing away from the sun go noticeably darker, so hills read.
+        float light = 0.4 + 0.7 * max(dot(normalize(vNormal), sunDir), 0.0);
+        vec3 color = mix(groundColor, tint, tintAmount);
+
+        if (pattern > 0.5) {
+          // The ground pattern: a faint checker plus dark lines every
+          // patternSpacing metres, painted onto the surface so it bends over
+          // hills. Fades out where squares get too small on screen.
+          vec2 coord = vWorld.xz / patternSpacing;
+          vec2 perPixel = fwidth(coord);
+          float crowding = 1.0 - smoothstep(0.08, 0.3, max(perPixel.x, perPixel.y));
+          vec2 square = floor(coord);
+          float checker = mod(square.x + square.y, 2.0);
+          color *= 1.0 - 0.06 * checker * crowding;
+          vec2 fromLine = abs(fract(coord - 0.5) - 0.5) / perPixel;
+          float line = 1.0 - min(min(fromLine.x, fromLine.y) / 1.5, 1.0);
+          color *= 1.0 - 0.35 * line * crowding;
+        }
+        color *= light;
 
         if (showGrid > 0.5) {
           vec2 coord = vWorld.xz / cellSize;

@@ -135,14 +135,19 @@ const HILL_PARTS: [HillPart, string[]][] = [
   ['facing', ['hillCount']],
   ['height', ['hillHeight']],
   ['top', ['hillTop']],
-  ['runUp', ['runUpLength', 'runUpFoot', 'runUpShoulder']],
-  ['runDown', ['runDownLength', 'runDownFoot', 'runDownShoulder']],
+  ['runUp', ['runUpLength']],
+  ['runDown', ['runDownLength']],
+  ['runUpFoot', ['runUpFoot']],
+  ['runUpShoulder', ['runUpShoulder']],
+  ['runDownFoot', ['runDownFoot']],
+  ['runDownShoulder', ['runDownShoulder']],
 ]
 
 /** Applies everything that doesn't need a rebuild (debug views, detail). */
 function applyViews(): void {
   outline.visible = store.debug('mapSize')
   terrain.setShowGrid(store.debug('cellSize'))
+  terrain.setPattern(store.isOn('showGrid'), store.get('gridSpacing'))
   terrain.setDetailDistance(store.get('detailDistance'))
   terrain.setDebug(store.debug('detailDistance'))
   terrain.setWireframe(store.isOn('wireframe'))
