@@ -18,7 +18,7 @@ export class SliderRow implements Row {
     private readonly store: SettingsStore,
   ) {
     const s = setting
-    this.el.className = 'menu-row'
+    this.el.className = s.indent ? 'menu-row menu-indent' : 'menu-row'
 
     this.debug.type = 'checkbox'
     this.debug.className = 'menu-debug'
@@ -30,6 +30,15 @@ export class SliderRow implements Row {
     const name = document.createElement('span')
     name.className = 'menu-name'
     name.textContent = s.name
+    if (s.reroll) {
+      const dice = document.createElement('button')
+      dice.type = 'button'
+      dice.className = 'menu-reroll'
+      dice.title = 'Pick a random one'
+      dice.textContent = '🎲'
+      dice.addEventListener('click', () => store.set(s.id, s.min + Math.floor(Math.random() * (s.max - s.min + 1))))
+      name.append(' ', dice)
+    }
 
     for (const input of [this.range, this.box]) {
       input.min = String(s.min)

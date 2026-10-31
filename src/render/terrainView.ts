@@ -86,16 +86,18 @@ export class TerrainView {
   }
 
   /**
-   * Call after heights inside `area` changed (e.g. a hill was baked): chunks
-   * there get fresh bounds and are rebuilt on the next updateLod.
+   * Call after heights inside `areas` changed (e.g. hills were baked): chunks
+   * touching them get fresh bounds and are rebuilt on the next updateLod.
    */
-  heightsChanged(area: Area): void {
+  heightsChanged(areas: Area[]): void {
     if (!this.ground) return
     // One cell wider: a point's lighting uses the heights one cell either side.
     const pad = this.ground.cellSize
+    const touches = (b: Box3, a: Area) =>
+      !(b.max.x < a.minX - pad || b.min.x > a.maxX + pad || b.max.z < a.minZ - pad || b.min.z > a.maxZ + pad)
     for (const chunk of this.chunks) {
       const b = chunk.box
-      if (b.max.x < area.minX - pad || b.min.x > area.maxX + pad || b.max.z < area.minZ - pad || b.min.z > area.maxZ + pad) continue
+      if (!areas.some((a) => touches(b, a))) continue
       const [low, high] = heightRange(this.ground, chunk.xr, chunk.zr)
       b.min.y = low
       b.max.y = high

@@ -10,17 +10,47 @@ describe('buildMenu', () => {
   const { window: menu, rows, tabs } = buildMenu(SETTINGS, TABS, store, fakeStorage())
 
   it('has the four tabs in order', () => {
-    const names = [...menu.el.querySelectorAll('.menu-tabbar > button')].map((b) => b.textContent)
+    const names = [...menu.el.querySelector('.menu-tabbar')!.children].map((b) => b.textContent)
     expect(names).toEqual(['MAP', 'RIDER', 'BIKE', 'AI'])
   })
 
-  it('puts Terrain, Detail and Hill sections on the MAP page', () => {
+  it('puts Terrain, Detail and Features sections on the MAP page', () => {
     const page = tabs.page('MAP').el
     const titles = [...page.querySelectorAll('.menu-section-title')].map((t) => t.textContent)
-    expect(titles).toEqual(['Terrain', 'Detail', 'Hill'])
+    expect(titles).toEqual(['Terrain', 'Detail', 'Features'])
     expect(page.querySelectorAll('.menu-row')).toHaveLength(SETTINGS.length)
     expect([...rows.keys()].slice(0, 4)).toEqual(['mapSize', 'cellSize', 'detailDistance', 'wireframe'])
     expect(page.querySelectorAll('.menu-toggle')).toHaveLength(1)
+  })
+
+  it('Features has the seed above a row of feature tabs holding Hill', () => {
+    const features = [...tabs.page('MAP').el.querySelectorAll('.menu-section')].find(
+      (s) => s.querySelector('.menu-section-title')!.textContent === 'Features',
+    )!
+    const body = features.querySelector('.menu-section-body')!
+    expect(body.firstElementChild!.querySelector('.menu-name')!.textContent).toContain('Seed')
+    const inner = body.querySelector('.menu-tabs')!
+    expect([...inner.querySelectorAll('.menu-tabbar > button')].map((b) => b.textContent)).toEqual(['Hill'])
+    expect(inner.contains(rows.get('hillCount')!.el)).toBe(true)
+  })
+
+  it('variation rows are indented and have no debug checkbox', () => {
+    const row = rows.get('hillHeightVar')!.el
+    expect(row.classList.contains('menu-indent')).toBe(true)
+    expect((row.querySelector('.menu-debug') as HTMLElement).style.visibility).toBe('hidden')
+  })
+
+  it('the dice button picks a new seed', () => {
+    const own = new SettingsStore(SETTINGS, fakeStorage())
+    const built = buildMenu(SETTINGS, TABS, own, fakeStorage())
+    const dice = built.rows.get('seed')!.el.querySelector('.menu-reroll') as HTMLButtonElement
+    const seen = new Set<number>()
+    for (let i = 0; i < 5; i++) {
+      dice.click()
+      seen.add(own.get('seed'))
+    }
+    expect(seen.size).toBeGreaterThan(1)
+    for (const s of seen) expect(Number.isInteger(s)).toBe(true)
   })
 
   it('leaves the other pages empty', () => {

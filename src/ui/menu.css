@@ -109,3 +109,9 @@
   font-size: 12px;
   color: #a8b8c8;
 }
+
+/* Variation rows sit tucked under the setting they vary. */
+.menu-indent .menu-name { padding-left: 14px; color: #a8a8a8; font-size: 13px; }
+.menu-reroll { padding: 0 4px; font-size: 12px; line-height: 18px; }
+/* Feature tabs inside a section: no page scroll of their own. */
+.menu-section-body .menu-tabs .menu-page { overflow: visible; padding: 4px 0; }

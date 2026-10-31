@@ -3,14 +3,15 @@ import { FlyCamera } from './camera/flyCamera'
 import { Input } from './camera/input'
 import { connectMenuKey } from './camera/menuKey'
 import { EdgeOutline } from './render/edgeOutline'
-import { HillDebug, type HillPart } from './render/hillDebug'
+import { HillDebug, HillFieldDebug, type HillPart } from './render/hillDebug'
 import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
 import { SettingsStore } from './settings/store'
 import { buildMenu } from './ui/buildMenu'
 import { cellSizeUsed, type Ground, makeGround } from './world/ground'
-import { bakeHill, type HillShape, hillBounds, joinAreas } from './world/hill'
-import { readHill } from './world/hillSettings'
+import { addHill, flattenArea, type HillShape, hillBounds } from './world/hill'
+import { placeHills } from './world/hills'
+import { readHillRules } from './world/hillSettings'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
 const ui = document.querySelector<HTMLDivElement>('#ui')!
@@ -46,26 +47,59 @@ ui.append(menu.window.el)
 const terrain = new TerrainView(scene)
 const outline = new EdgeOutline(scene)
 const hillDebug = new HillDebug(scene)
+const hillField = new HillFieldDebug(scene)
 const rows = menu.rows
 
 /** Size and cell size the current ground was built with. */
 let built = { mapSize: NaN, cellSize: NaN }
 let ground: Ground | null = null
-let hill: HillShape = readHill(store)
+let hills: HillShape[] = []
+/** The rules and seed the current hills were placed with. */
+let hillsKey = ''
+/** The hill the full debug drawing is on (nearest the camera). */
+let inspected: HillShape | null = null
+
+function currentHillsKey(): string {
+  return JSON.stringify([readHillRules(store), store.get('seed')])
+}
+
+/** Places the hills for the current settings and bakes them into the ground. */
+function bakeHills(g: Ground): void {
+  hills = placeHills(readHillRules(store), g.size, store.get('seed'))
+  hillsKey = currentHillsKey()
+  for (const h of hills) addHill(g, h)
+  hillField.update(hills, store.get('hillSpacing'))
+  inspected = null
+  rows.get('hillCount')?.setNote(`placed ${hills.length} of ${store.get('hillCount')}`)
+}
 
 /**
- * Re-bakes the hill if any of its settings changed (at most once a frame).
- * Only the old and new footprint are recalculated and redrawn.
+ * Re-places the hills if any hill setting or the seed changed (at most once
+ * a frame). Only the old and new footprints are recalculated and redrawn.
  */
-function rebakeHillIfChanged(): void {
-  if (!ground) return
-  const next = readHill(store)
-  if (JSON.stringify(next) === JSON.stringify(hill)) return
-  const area = joinAreas(hillBounds(hill), hillBounds(next))
-  hill = next
-  bakeHill(ground, hill, area)
-  terrain.heightsChanged(area)
-  hillDebug.update(hill)
+function rebakeHillsIfChanged(): void {
+  if (!ground || currentHillsKey() === hillsKey) return
+  const old = hills.map(hillBounds)
+  for (const area of old) flattenArea(ground, area)
+  bakeHills(ground)
+  terrain.heightsChanged([...old, ...hills.map(hillBounds)])
+}
+
+/** Moves the full debug drawing to the hill nearest the camera. */
+function inspectNearestHill(eye: THREE.Vector3): void {
+  let nearest: HillShape | null = null
+  let best = Infinity
+  for (const h of hills) {
+    const d = Math.hypot(h.x - eye.x, h.z - eye.z)
+    if (d < best) {
+      best = d
+      nearest = h
+    }
+  }
+  if (nearest === inspected) return
+  inspected = nearest
+  if (nearest) hillDebug.update(nearest)
+  else hillDebug.clear()
 }
 
 /**
@@ -82,9 +116,7 @@ function rebuildIfChanged(): void {
   built = { mapSize, cellSize }
 
   ground = makeGround(mapSize, asked)
-  hill = readHill(store)
-  bakeHill(ground, hill, hillBounds(hill))
-  hillDebug.update(hill)
+  bakeHills(ground)
   terrain.update(ground)
   outline.update(ground.size)
 
@@ -98,8 +130,8 @@ function rebuildIfChanged(): void {
 
 /** Which part of the hill drawing each hill setting's debug checkbox shows. */
 const HILL_PARTS: [HillPart, string[]][] = [
-  ['position', ['hillX', 'hillZ']],
-  ['facing', ['hillFacing']],
+  ['position', ['hillCount']],
+  ['facing', ['hillCount']],
   ['height', ['hillHeight']],
   ['top', ['hillTop']],
   ['runUp', ['runUpLength', 'runUpFoot', 'runUpShoulder']],
@@ -114,6 +146,7 @@ function applyViews(): void {
   terrain.setDebug(store.debug('detailDistance'))
   terrain.setWireframe(store.isOn('wireframe'))
   for (const [part, ids] of HILL_PARTS) hillDebug.setVisible(part, ids.some((id) => store.debug(id)))
+  hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'))
 }
 store.onChange(applyViews)
 applyViews()
@@ -130,6 +163,7 @@ function resize(): void {
   camera.updateProjectionMatrix()
   outline.setResolution(window.innerWidth, window.innerHeight)
   hillDebug.setResolution(window.innerWidth, window.innerHeight)
+  hillField.setResolution(window.innerWidth, window.innerHeight)
 }
 window.addEventListener('resize', resize)
 resize()
@@ -150,8 +184,9 @@ const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1) // no huge jump after a stall
   rebuildIfChanged()
-  rebakeHillIfChanged()
+  rebakeHillsIfChanged()
   fly.update(dt, input, input.isLooking)
+  inspectNearestHill(camera.position)
   terrain.updateLod(camera.position)
   renderer.render(scene, camera)
   updateDetailNote(dt)

@@ -1,38 +1,25 @@
+import { SETTINGS } from '../settings/list'
 import type { SettingsStore } from '../settings/store'
-import type { HillShape } from './hill'
+import type { HillRules, Varied } from './hills'
 
-/** Ids of every setting that shapes the hill. */
-export const HILL_SETTINGS = [
-  'hillX',
-  'hillZ',
-  'hillFacing',
-  'hillHeight',
-  'hillTop',
-  'runUpLength',
-  'runUpFoot',
-  'runUpShoulder',
-  'runDownLength',
-  'runDownFoot',
-  'runDownShoulder',
-] as const
-
-/** The hill as the settings describe it. */
-export function readHill(store: SettingsStore): HillShape {
+/** The hill rules as the settings describe them. */
+export function readHillRules(store: SettingsStore): HillRules {
+  const varied = (id: string): Varied => {
+    const setting = SETTINGS.find((s) => s.id === id)
+    const min = setting && setting.kind === 'slider' ? setting.min : 0
+    return { value: store.get(id), variation: store.get(`${id}Var`), min }
+  }
+  const side = (prefix: string) => ({
+    length: varied(`${prefix}Length`),
+    foot: varied(`${prefix}Foot`),
+    shoulder: varied(`${prefix}Shoulder`),
+  })
   return {
-    x: store.get('hillX'),
-    z: store.get('hillZ'),
-    facing: store.get('hillFacing'),
-    height: store.get('hillHeight'),
-    top: store.get('hillTop'),
-    runUp: {
-      length: store.get('runUpLength'),
-      foot: store.get('runUpFoot'),
-      shoulder: store.get('runUpShoulder'),
-    },
-    runDown: {
-      length: store.get('runDownLength'),
-      foot: store.get('runDownFoot'),
-      shoulder: store.get('runDownShoulder'),
-    },
+    count: store.get('hillCount'),
+    spacing: store.get('hillSpacing'),
+    height: varied('hillHeight'),
+    top: varied('hillTop'),
+    runUp: side('runUp'),
+    runDown: side('runDown'),
   }
 }

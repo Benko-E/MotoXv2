@@ -43,6 +43,7 @@ export function buildMenu(
   menu.add(tabSet)
 
   const sections = new Map<string, Section>()
+  const subtabs = new Map<string, Tabs>()
   const rows = new Map<string, Row>()
   for (const s of settings) {
     const key = `${s.tab}/${s.section}`
@@ -53,7 +54,22 @@ export function buildMenu(
       sections.set(key, section)
     }
     const row = s.kind === 'slider' ? new SliderRow(s, store) : new ToggleRow(s, store)
-    section.add(row)
+    const subtab = s.kind === 'slider' ? s.subtab : undefined
+    if (subtab) {
+      // One row of tabs per section, made from the subtab names in list order.
+      let inner = subtabs.get(key)
+      if (!inner) {
+        const names = settings.flatMap((o) =>
+          o.kind === 'slider' && o.subtab && `${o.tab}/${o.section}` === key ? [o.subtab] : [],
+        )
+        inner = new Tabs([...new Set(names)])
+        section.add(inner)
+        subtabs.set(key, inner)
+      }
+      inner.page(subtab).add(row)
+    } else {
+      section.add(row)
+    }
     rows.set(s.id, row)
   }
 
