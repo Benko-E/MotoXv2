@@ -36,6 +36,14 @@ This is the second, rebuilt version.
   ↑ opens the throttle, ↓ brakes. Debug shows rpm, throttle, drive torque
   and each wheel's slip (red while sliding). No steering or crashes yet:
   a bike that flips over is dropped again.
+- Bike step C, gears, clutch and sound: an automatic clutch (bites higher
+  the more throttle, so wide open launches hard) and an automatic 5-speed
+  that shifts late and quick like a rider would. Engine sound is made in
+  the browser: a popping 4-stroke single that crackles off the throttle
+  and stutters on the limiter (BIKE → Sound). A temporary wheelie &
+  stoppie control eases the throttle and front brake so the bike doesn't
+  loop over until the rider can lean (step E). Debug shows the gear, the
+  clutch and an rpm bar with the shift point.
 
 ## Controls
 

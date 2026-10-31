@@ -23,6 +23,18 @@ const ARROW_SCALE = 1 / 1000
 /** Labels are redrawn this often (their text is a picture, so not every frame). */
 const LABEL_INTERVAL = 0.1
 const AXLE = new Vector3(1, 0, 0)
+const GEAR_NAMES = ['1st', '2nd', '3rd', '4th', '5th']
+/** Cells in the rpm bar. */
+const BAR_CELLS = 30
+
+/** A text bar from 0 to the limiter: filled up to `rpm`, with ┃ at the up-shift point. */
+function rpmBar(rpm: number, upShift: number, limit: number): string {
+  const filled = Math.round((Math.min(rpm, limit) / limit) * BAR_CELLS)
+  const mark = Math.min(Math.round((upShift / limit) * BAR_CELLS), BAR_CELLS - 1)
+  let bar = ''
+  for (let i = 0; i < BAR_CELLS; i++) bar += i === mark ? '┃' : i < filled ? '█' : '░'
+  return bar
+}
 
 /** Which debug drawings are on (the BIKE tab's checkboxes). */
 export type BikeDebug = { mass: boolean; springs: boolean; grip: boolean; engine: boolean }
@@ -41,6 +53,7 @@ export class BikeView {
   private readonly springLabels: Sprite[]
   private readonly slipLabels: Sprite[]
   private readonly engineLabel: Sprite
+  private readonly rpmBar: Sprite
   private readonly speedLabel: Sprite
   private sinceLabels = Infinity
   private debug: BikeDebug = { mass: false, springs: false, grip: false, engine: false }
@@ -88,6 +101,7 @@ export class BikeView {
     this.springLabels = [this.addLabel(scene), this.addLabel(scene)]
     this.slipLabels = [this.addLabel(scene), this.addLabel(scene)]
     this.engineLabel = this.addLabel(scene)
+    this.rpmBar = this.addLabel(scene)
     this.speedLabel = this.addLabel(scene)
   }
 
@@ -99,6 +113,7 @@ export class BikeView {
     for (const l of this.springLabels) l.visible = debug.springs
     for (const l of this.slipLabels) l.visible = debug.grip
     this.engineLabel.visible = debug.engine
+    this.rpmBar.visible = debug.engine
     this.speedLabel.visible = debug.engine
   }
 
@@ -133,8 +148,9 @@ export class BikeView {
 
     this.com.position.copy(bike.position)
     this.massLabel.position.copy(bike.position).add(new Vector3(0, 2.2, 0))
-    this.engineLabel.position.copy(bike.position).add(new Vector3(0, 2.7, 0))
-    this.speedLabel.position.copy(bike.position).add(new Vector3(0, 3.2, 0))
+    this.rpmBar.position.copy(bike.position).add(new Vector3(0, 2.7, 0))
+    this.engineLabel.position.copy(bike.position).add(new Vector3(0, 3.2, 0))
+    this.speedLabel.position.copy(bike.position).add(new Vector3(0, 3.7, 0))
 
     this.sinceLabels += dt
     if (this.sinceLabels < LABEL_INTERVAL) return
@@ -147,8 +163,14 @@ export class BikeView {
       const slip = w.contact ? `${where} slip ${Math.round(w.slip * 100)} %` : `${where} slip –`
       setLabelText(this.slipLabels[i], slip, w.sliding ? '#ff5050' : '#ffffff')
     })
+    const d = bike.drivetrain
     const throttle = Math.round(bike.throttle * 100)
-    setLabelText(this.engineLabel, `${Math.round(bike.rpm)} rpm · throttle ${throttle} % · ${Math.round(bike.driveTorque)} N·m at wheel`)
+    let engine = `${GEAR_NAMES[d.gear - 1]} · clutch ${d.state} · ${Math.round(bike.rpm)} rpm · throttle ${throttle} % · ${Math.round(bike.driveTorque)} N·m at wheel`
+    if (bike.wheelieCut > 0) engine += ` · wheelie control −${Math.round(bike.wheelieCut * 100)} %`
+    if (bike.stoppieCut > 0) engine += ` · stoppie control −${Math.round(bike.stoppieCut * 100)} %`
+    setLabelText(this.engineLabel, engine)
+    const limit = bike.params.revLimit
+    setLabelText(this.rpmBar, rpmBar(bike.rpm, d.upShiftRpm(bike.riderThrottle, limit), limit), bike.rpm > limit - 300 ? '#ff5050' : '#ffffff')
     setLabelText(this.speedLabel, `${(bike.speed * 3.6).toFixed(1)} km/h`)
   }
 

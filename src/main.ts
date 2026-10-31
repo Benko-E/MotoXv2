@@ -8,6 +8,7 @@ import { BikeView } from './render/bikeView'
 import { Bike } from './physics/bike'
 import { readBikeParams } from './physics/bikeSettings'
 import { ramp } from './physics/controls'
+import { EngineAudio } from './audio/engineAudio'
 import { FixedClock } from './physics/clock'
 import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
@@ -57,6 +58,10 @@ const hillField = new HillFieldDebug(scene)
 const bike = new Bike(readBikeParams(store))
 const bikeView = new BikeView(scene)
 const physicsClock = new FixedClock(1 / 500)
+const engineAudio = new EngineAudio()
+// Browsers only allow sound after the player presses something.
+window.addEventListener('keydown', () => engineAudio.start())
+window.addEventListener('pointerdown', () => engineAudio.start())
 /** Throttle and brakes, 0–1, eased in and out by ↑ and ↓. */
 const controls = { throttle: 0, brake: 0 }
 /** The map the bike was dropped on; a new map drops it again. */
@@ -324,6 +329,13 @@ renderer.setAnimationLoop(() => {
   fly.update(dt, input, input.isLooking)
   inspectNearestHill(camera.position)
   moveBike(dt)
+  engineAudio.update({
+    rpm: bike.rpm,
+    load: bike.throttle,
+    cut: bike.drivetrain.ignitionCut,
+    revLimit: bike.params.revLimit,
+    volume: store.isOn('soundOn') ? store.get('soundVolume') / 100 : 0,
+  })
   terrain.updateLod(camera.position)
   renderer.render(scene, camera)
   updateDetailNote(dt)

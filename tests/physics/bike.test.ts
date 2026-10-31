@@ -145,12 +145,13 @@ describe('Bike (step B: wheels and engine)', () => {
     expect(bike.rear.spin * 0.34).toBeGreaterThan(bike.speed * 1.3 + 1)
   })
 
-  it('full throttle uphill is slower than on the flat, downhill faster', () => {
+  it('uphill is slower than on the flat, downhill faster', () => {
     const up: Terrain = { heightAt: (_x, z) => -0.15 * z } // rises northwards
     const down: Terrain = { heightAt: (_x, z) => 0.15 * z }
     const results = [flat, up, down].map((t) => {
       const bike = settled(t)
-      run(bike, 3, t, full)
+      // Half throttle: wide open, 1st gear's top speed and wheelies would cap all three.
+      run(bike, 3, t, { throttle: 0.5, brake: 0 })
       return bike.speed
     })
     expect(results[1]).toBeLessThan(results[0] * 0.9)
@@ -171,7 +172,7 @@ describe('Bike (step B: wheels and engine)', () => {
   it('the rev limiter caps top speed', () => {
     const bike = settled(flat)
     run(bike, 25, flat, full)
-    const limit = ((DEFAULT_BIKE.revLimit / DEFAULT_BIKE.gearRatio) * 2 * Math.PI) / 60 * 0.34
+    const limit = ((DEFAULT_BIKE.revLimit / DEFAULT_BIKE.gears[4]) * 2 * Math.PI) / 60 * 0.34
     expect(bike.speed).toBeLessThan(limit * 1.03)
     expect(bike.speed).toBeGreaterThan(limit * 0.8)
     expect(bike.rpm).toBeLessThanOrEqual(DEFAULT_BIKE.revLimit * 1.03)
@@ -183,5 +184,53 @@ describe('Bike (step B: wheels and engine)', () => {
     run(bike, 4, flat, braking)
     expect(bike.speed).toBeLessThan(0.05)
     expect(bike.front.spin).toBe(0)
+  })
+})
+
+describe('Bike (step C: gears and rider stand-in)', () => {
+  it('wide open on the flat goes up through the gears', () => {
+    const bike = settled(flat)
+    run(bike, 6, flat, full)
+    expect(bike.drivetrain.gear).toBeGreaterThanOrEqual(3)
+    expect(bike.speed).toBeGreaterThan(25)
+  })
+
+  it('rider control keeps a wide-open launch from looping over', () => {
+    const highest = (params: typeof DEFAULT_BIKE) => {
+      const bike = settled(flat, params)
+      let most = 0
+      for (let t = 0; t < 4; t += 1 / 500) {
+        bike.step(1 / 500, full, flat)
+        most = Math.max(most, bike.pitch)
+      }
+      return (most * 180) / Math.PI
+    }
+    expect(highest(DEFAULT_BIKE)).toBeLessThan(40)
+    expect(highest({ ...DEFAULT_BIKE, riderControl: false })).toBeGreaterThan(60)
+  })
+
+  it('rider control eases the front brake so a hard stop out of a wheelie stays upright', () => {
+    const bike = settled(flat)
+    run(bike, 3, flat, full)
+    let lowest = 0
+    for (let t = 0; t < 4; t += 1 / 500) {
+      bike.step(1 / 500, braking, flat)
+      lowest = Math.min(lowest, bike.pitch)
+    }
+    expect((lowest * 180) / Math.PI).toBeGreaterThan(-20)
+    expect(bike.speed).toBeLessThan(0.05)
+  })
+
+  it('rider control goes by the slope, not the horizon', () => {
+    const slope = Math.tan((15 * Math.PI) / 180)
+    const down: Terrain = { heightAt: (_x, z) => slope * z } // falls northwards
+    const braked = settled(down)
+    expect(braked.stoppieCut).toBe(0)
+    const climb: Terrain = { heightAt: (_x, z) => -2 * slope * z } // about 28° up
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 1, climb) // from higher up: at 0.05 m the front starts in the slope
+    run(bike, 3, climb, braking)
+    bike.step(1 / 500, full, climb)
+    expect(bike.wheelieCut).toBe(0)
   })
 })

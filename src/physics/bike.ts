@@ -1,4 +1,5 @@
 import { Quaternion, Vector3 } from 'three'
+import { Drivetrain } from './drivetrain'
 
 /** Everything about the bike you can tune. Forces in N, lengths in m. */
 export type BikeParams = {
@@ -18,8 +19,8 @@ export type BikeParams = {
   slideGrip: number
   /** The engine's best torque, N·m (at 7500 rpm). */
   peakTorque: number
-  /** Engine turns per rear wheel turn (one fixed gear until step C). */
-  gearRatio: number
+  /** Engine turns per rear wheel turn in each gear, 1st first. */
+  gears: number[]
   /** No drive above this, rpm. */
   revLimit: number
   /** Engine braking torque at the limiter with the throttle shut, N·m. */
@@ -27,6 +28,11 @@ export type BikeParams = {
   /** Most brake torque on each wheel, N·m. */
   frontBrake: number
   rearBrake: number
+  /**
+   * Temporary stand-in for the rider: eases the throttle off as a wheelie
+   * gets high, and the front brake off as the rear lifts (a stoppie).
+   */
+  riderControl: boolean
 }
 
 export const DEFAULT_BIKE: BikeParams = {
@@ -40,11 +46,12 @@ export const DEFAULT_BIKE: BikeParams = {
   grip: 1,
   slideGrip: 0.8,
   peakTorque: 50,
-  gearRatio: 10,
+  gears: [19, 15.2, 12.6, 10.9, 9.5],
   revLimit: 11000,
   engineBraking: 12,
   frontBrake: 450,
   rearBrake: 300,
+  riderControl: true,
 }
 
 export type Terrain = { heightAt(x: number, z: number): number }
@@ -83,23 +90,8 @@ const SHAPE = { w: 0.8, h: 1.2, l: 2.1 }
 /** Suspension mounts, relative to the centre of mass (nose is −z). */
 const MOUNTS = { front: new Vector3(0, -0.1, -0.74), rear: new Vector3(0, -0.1, 0.74) }
 const RADIUS = { front: 0.36, rear: 0.34 }
-/** Wheel inertia, kg·m². The rear also spins the engine through the gearing. */
+/** Wheel inertia, kg·m². The rear also spins the engine while the clutch is locked. */
 const WHEEL_INERTIA = { front: 0.9, rear: 1.0 }
-const ENGINE_INERTIA = 0.04
-const IDLE_RPM = 1500
-/** Chain and gearbox losses. */
-const DRIVETRAIN_EFFICIENCY = 0.9
-/** The torque curve: rpm and share of peak torque. */
-const TORQUE_CURVE: [number, number][] = [
-  [1500, 0.6],
-  [3000, 0.72],
-  [5000, 0.88],
-  [7500, 1],
-  [9500, 0.92],
-  [11000, 0.78],
-]
-const RPM_PER_RAD_S = 60 / (2 * Math.PI)
-const LIMITER_FADE_RPM = 200
 /** Past full travel: a very stiff, well-damped stop, so bottoming out doesn't bounce. */
 const BUMP_STOP = { stiffness: 200000, damping: 8000 }
 const ROLLING_RESISTANCE = 0.02
@@ -112,6 +104,14 @@ const STICK_STIFFNESS = 60000
  * touch it: that's a crash, for the body to handle, not the suspension.
  */
 const MIN_ALONG = 0.5
+/**
+ * Temporary wheelie control (step E replaces it with rider lean): the
+ * throttle eases off from `start` to fully shut at `start + range` of
+ * wheelie, looking `ahead` seconds forward at how fast the nose is rising.
+ */
+const WHEELIE = { start: (20 * Math.PI) / 180, range: (15 * Math.PI) / 180, ahead: 0.2 }
+/** The same for the front brake, nose down. */
+const STOPPIE = { start: (4 * Math.PI) / 180, range: (8 * Math.PI) / 180, ahead: 0.2 }
 /** Temporary upright assist (step D replaces it with steering balance). */
 const UPRIGHT = { stiffness: 4000, damping: 600 }
 /** Spacing for reading the ground's slope. */
@@ -124,14 +124,27 @@ export class Bike {
   readonly angularVelocity = new Vector3()
   readonly front: WheelState = emptyWheel()
   readonly rear: WheelState = emptyWheel()
-  /** Engine speed, rpm. */
-  rpm = IDLE_RPM
-  /** How far the throttle is open this step, 0–1. */
+  /** Engine, clutch and gearbox. */
+  readonly drivetrain = new Drivetrain()
+  /** How far the throttle is open this step, 0–1 (after wheelie control). */
   throttle = 0
+  /** The throttle the rider asks for, 0–1. */
+  riderThrottle = 0
+  /** Share of the rider's throttle wheelie control took away this step, 0–1. */
+  wheelieCut = 0
+  /** Share of the rider's front brake stoppie control took away this step, 0–1. */
+  stoppieCut = 0
+  /** Nose up (+) or down (−) from the ground under the bike, radians. */
+  pitch = 0
   /** Torque the engine sends to the rear wheel this step, N·m (negative = engine braking). */
   driveTorque = 0
 
   constructor(public params: BikeParams) {}
+
+  /** Engine speed, rpm. */
+  get rpm(): number {
+    return this.drivetrain.rpm
+  }
 
   get mass(): number {
     return this.params.bikeMass + this.params.riderMass
@@ -161,6 +174,7 @@ export class Bike {
       w.slip = 0
       w.sliding = false
     }
+    this.drivetrain.reset()
   }
 
   step(dt: number, input: BikeInput, terrain: Terrain): void {
@@ -178,28 +192,32 @@ export class Bike {
 
     const right = new Vector3(1, 0, 0).applyQuaternion(q)
 
-    // Engine: rpm follows the rear wheel through the gearing, never below idle.
-    this.rpm = Math.max(IDLE_RPM, this.rear.spin * p.gearRatio * RPM_PER_RAD_S)
-    const throttle = clamp01(input.throttle)
+    // Wheelie and stoppie go by the ground under the bike, not the horizon,
+    // so climbing and descending hills don't count.
+    const slope = groundNormal(terrain, this.position.x, this.position.z)
+    const along = forward.clone().addScaledVector(slope, -forward.dot(slope)).normalize()
+    this.pitch = Math.asin(Math.max(-1, Math.min(1, forward.y))) - Math.asin(Math.max(-1, Math.min(1, along.y)))
+    const rising = this.pitch + WHEELIE.ahead * this.angularVelocity.dot(right)
+    this.wheelieCut = p.riderControl ? clamp01((rising - WHEELIE.start) / WHEELIE.range) : 0
+    const diving = -(this.pitch + STOPPIE.ahead * this.angularVelocity.dot(right))
+    this.stoppieCut = p.riderControl ? clamp01((diving - STOPPIE.start) / STOPPIE.range) : 0
+    const wanted = clamp01(input.throttle)
+    this.riderThrottle = wanted
+    const throttle = wanted * (1 - this.wheelieCut)
     this.throttle = throttle
-    // The limiter fades the drive out over the last 200 rpm, so it can't chatter.
-    const limiter = clamp01((p.revLimit - this.rpm) / LIMITER_FADE_RPM)
-    const pull = torqueCurve(this.rpm) * p.peakTorque * throttle * limiter
-    // Engine braking only above idle: at idle the clutch would slip, not pull the wheel back.
-    const aboveIdle = Math.min(Math.max((this.rpm - IDLE_RPM) / (p.revLimit - IDLE_RPM), 0), 1)
-    const engineBrake = (1 - throttle) * p.engineBraking * aboveIdle
-    this.driveTorque = (pull - engineBrake) * p.gearRatio * DRIVETRAIN_EFFICIENCY
     const brake = clamp01(input.brake)
+    const engine = this.drivetrain.drive(dt, throttle, brake, this.rear.spin, p, wanted, this.rear.contact)
+    this.driveTorque = engine.torque
 
     const wheels: [WheelState, Vector3, number, number, number, number, number, number][] = [
-      [this.front, MOUNTS.front, RADIUS.front, p.frontSpring, p.frontDamping, WHEEL_INERTIA.front, 0, p.frontBrake],
+      [this.front, MOUNTS.front, RADIUS.front, p.frontSpring, p.frontDamping, WHEEL_INERTIA.front, 0, p.frontBrake * (1 - this.stoppieCut)],
       [
         this.rear,
         MOUNTS.rear,
         RADIUS.rear,
         p.rearSpring,
         p.rearDamping,
-        WHEEL_INERTIA.rear + ENGINE_INERTIA * p.gearRatio ** 2,
+        WHEEL_INERTIA.rear + engine.inertia,
         this.driveTorque,
         p.rearBrake,
       ],
@@ -311,6 +329,8 @@ export class Bike {
       wheel.angle = (wheel.angle + spin * dt) % (2 * Math.PI)
     }
 
+    this.drivetrain.settle(this.rear.spin, p)
+
     // Upright assist: twist round the long axis back towards vertical
     // (only with a wheel on the ground: in the air that's the rider's job).
     const grounded = this.front.contact || this.rear.contact
@@ -371,19 +391,6 @@ function emptyWheel(): WheelState {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
-}
-
-/** Share of peak torque at `rpm`, read off the torque curve. */
-function torqueCurve(rpm: number): number {
-  const c = TORQUE_CURVE
-  if (rpm <= c[0][0]) return c[0][1]
-  for (let i = 1; i < c.length; i++) {
-    if (rpm <= c[i][0]) {
-      const t = (rpm - c[i - 1][0]) / (c[i][0] - c[i - 1][0])
-      return c[i - 1][1] + (c[i][1] - c[i - 1][1]) * t
-    }
-  }
-  return c[c.length - 1][1]
 }
 
 /** The ground's upward-facing normal at (x, z), from the heights around it. */

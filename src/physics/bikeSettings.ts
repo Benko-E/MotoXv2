@@ -14,10 +14,11 @@ export function readBikeParams(store: SettingsStore): BikeParams {
     grip: store.get('grip'),
     slideGrip: store.get('slideGrip') / 100,
     peakTorque: store.get('peakTorque'),
-    gearRatio: store.get('gearRatio'),
+    gears: [1, 2, 3, 4, 5].map((n) => store.get(`gear${n}`)),
     revLimit: store.get('revLimit'),
     engineBraking: store.get('engineBraking'),
     frontBrake: store.get('frontBrake'),
     rearBrake: store.get('rearBrake'),
+    riderControl: store.isOn('riderControl'),
   }
 }
