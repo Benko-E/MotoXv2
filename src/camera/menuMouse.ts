@@ -21,7 +21,7 @@ export function connectMenuAndMouse(menu: MenuWindow, canvas: HTMLCanvasElement,
   }
 
   doc.addEventListener('keydown', (e) => {
-    if (e.code === 'Escape') menu.toggle()
+    if (e.code === 'Escape' && !e.repeat) menu.toggle() // held Esc repeats: ignore
   })
 
   menu.onOpenChange((open) => {

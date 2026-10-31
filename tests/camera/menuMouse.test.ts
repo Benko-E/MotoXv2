@@ -19,6 +19,15 @@ describe('connectMenuAndMouse', () => {
     expect(menu.isOpen).toBe(false)
   })
 
+  it('holding Esc down does not flicker the menu', () => {
+    const menu = setup()
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }))
+    for (let i = 0; i < 3; i++) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', repeat: true }))
+    }
+    expect(menu.isOpen).toBe(true)
+  })
+
   it('opens the menu when the browser drops the mouse (the swallowed Esc)', () => {
     const menu = setup()
     document.dispatchEvent(new Event('pointerlockchange'))
