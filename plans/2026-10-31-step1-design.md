@@ -25,7 +25,9 @@ on every build, so plans live in `plans/`.
 
 ## The menu
 
-**Esc** shows and hides the menu. The game keeps running while it's open.
+**`** (the key left of 1) shows and hides the menu. The game keeps running while it's open.
+(Changed 2026-10-31 after the first ride: Esc fought the browser's own use of Esc
+for mouse capture, so the menu couldn't be closed.)
 
 Built from small, separate pieces. Anything that holds content can hold any
 other piece, so nested tabs, scrolling pages and more control types can be
@@ -57,9 +59,12 @@ Plain HTML and CSS, styled as a readable game menu, not a developer tool.
 
 ### Mouse and keyboard
 
-- Menu closed: the mouse steers the camera (pointer lock).
-- Menu open: the mouse is free (pointer lock released). The keyboard still
-  flies the camera, except while typing in a number box.
+- The mouse is never captured; the cursor always stays visible.
+- Hold the **right** mouse button on the game and drag to look around, the
+  same with the menu open or closed (editor-style). Letting go anywhere stops
+  it. No browser right-click menu over the game.
+- The keyboard flies the camera with the menu open or closed, except while
+  typing in a number box.
 
 ## The ground
 
@@ -87,8 +92,8 @@ the ground; labels stay a readable size at any distance.
 ## Camera
 
 - Starts above one corner of the map looking at the middle, whole map in view.
-- WASD move, Space up, C down, Shift faster; mouse look while the menu is
-  closed.
+- WASD move, Space up, C down, Shift faster; hold the right mouse button and
+  drag to look.
 - No camera settings in the menu yet.
 
 ## Look

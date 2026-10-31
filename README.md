@@ -13,9 +13,8 @@ Step 1: a flat map you can fly over, with a debug menu for its settings.
 
 | Key | What it does |
 |---|---|
-| Esc | Show or hide the debug menu |
-| Click the game | Let the mouse steer the camera |
-| Mouse | Look around (while the menu is closed) |
+| ` (left of 1) | Show or hide the debug menu |
+| Hold right mouse + drag | Look around (menu open or closed) |
 | W A S D | Fly forward, left, back, right |
 | Space / C | Fly up / down |
 | Shift | Fly faster |

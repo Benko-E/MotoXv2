@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { FlyCamera } from './camera/flyCamera'
 import { Input } from './camera/input'
-import { connectMenuAndMouse } from './camera/menuMouse'
+import { connectMenuKey } from './camera/menuKey'
 import { EdgeOutline } from './render/edgeOutline'
 import { GroundView } from './render/groundView'
 import { SETTINGS, TABS } from './settings/list'
@@ -57,10 +57,10 @@ store.onChange(rebuildMap)
 rebuildMap()
 
 // Camera and controls
-const input = new Input(window)
+const input = new Input(window, canvas)
 const fly = new FlyCamera(camera)
 fly.placeOverCorner(store.get('mapSize'))
-connectMenuAndMouse(menu.window, canvas, document)
+connectMenuKey(menu.window, document)
 
 function resize(): void {
   renderer.setSize(window.innerWidth, window.innerHeight, false)
@@ -74,6 +74,6 @@ resize()
 const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1) // no huge jump after a stall
-  fly.update(dt, input, document.pointerLockElement === canvas)
+  fly.update(dt, input, input.isLooking)
   renderer.render(scene, camera)
 })
