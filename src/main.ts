@@ -7,6 +7,7 @@ import { HillDebug, HillFieldDebug, type HillPart } from './render/hillDebug'
 import { BikeView } from './render/bikeView'
 import { Bike } from './physics/bike'
 import { readBikeParams } from './physics/bikeSettings'
+import { ramp } from './physics/controls'
 import { FixedClock } from './physics/clock'
 import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
@@ -56,6 +57,8 @@ const hillField = new HillFieldDebug(scene)
 const bike = new Bike(readBikeParams(store))
 const bikeView = new BikeView(scene)
 const physicsClock = new FixedClock(1 / 500)
+/** Throttle and brakes, 0–1, eased in and out by ↑ and ↓. */
+const controls = { throttle: 0, brake: 0 }
 /** The map the bike was dropped on; a new map drops it again. */
 let bikeGround: Ground | null = null
 
@@ -68,12 +71,19 @@ function moveBike(dt: number): void {
     bikeGround = g
   }
   bike.params = readBikeParams(store)
-  const controls = { push: input.isDown('ArrowUp'), brake: input.isDown('ArrowDown') }
+  // A twist grip and a lever take a moment to move, they don't snap open.
+  controls.throttle = ramp(controls.throttle, input.isDown('ArrowUp'), dt, 0.25, 0.15)
+  controls.brake = ramp(controls.brake, input.isDown('ArrowDown'), dt, 0.1, 0.1)
   physicsClock.advance(dt, (step) => bike.step(step, controls, g))
   // Fell off the map or blew up: start again in the middle.
   const half = g.size / 2 + 20
   if (!Number.isFinite(bike.position.y) || Math.abs(bike.position.x) > half || Math.abs(bike.position.z) > half) {
     bike.drop(0, 0, 0, store.get('dropHeight'), g)
+  } else if (bike.position.y < g.heightAt(bike.position.x, bike.position.z) - 3) {
+    // Flipped over and sank (only the wheels touch the ground until crashes
+    // exist): drop it again where it is.
+    const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation)
+    bike.drop(bike.position.x, bike.position.z, Math.atan2(nose.x, -nose.z), store.get('dropHeight'), g)
   }
   bikeView.update(bike, dt)
 }
@@ -254,7 +264,7 @@ function applyViews(): void {
     mass: store.debug('bikeMass'),
     springs: store.debug('travel'),
     grip: store.debug('grip'),
-    speed: store.debug('pushForce'),
+    engine: store.debug('peakTorque'),
   })
   hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'), store.debug('noiseCalm'))
 }

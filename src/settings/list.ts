@@ -172,8 +172,14 @@ export const SETTINGS: Setting[] = [
   bikeSetting('rearSpring', 'Rear spring', 'Suspension', 1, 40, 0.5, 10, 'kN/m', false),
   bikeSetting('frontDamping', 'Front damping', 'Suspension', 0, 5, 0.05, 1.2, 'kN·s/m', false),
   bikeSetting('rearDamping', 'Rear damping', 'Suspension', 0, 5, 0.05, 1.2, 'kN·s/m', false),
+  bikeSetting('peakTorque', 'Peak torque', 'Engine', 5, 150, 1, 50, 'N·m', true),
+  bikeSetting('gearRatio', 'Gear ratio', 'Engine', 2, 30, 0.1, 10, '', false),
+  bikeSetting('revLimit', 'Rev limit', 'Engine', 4000, 16000, 100, 11000, 'rpm', false),
+  bikeSetting('engineBraking', 'Engine braking', 'Engine', 0, 50, 0.5, 12, 'N·m', false),
+  bikeSetting('frontBrake', 'Front brake', 'Brakes', 0, 1500, 10, 450, 'N·m', false),
+  bikeSetting('rearBrake', 'Rear brake', 'Brakes', 0, 1000, 10, 300, 'N·m', false),
   bikeSetting('grip', 'Grip', 'Tyres', 0.1, 2, 0.05, 1, '', true),
-  bikeSetting('pushForce', 'Push (↑ key)', 'Test', 0, 3000, 50, 600, 'N', true),
+  bikeSetting('slideGrip', 'Slide grip', 'Tyres', 10, 100, 1, 80, '%', false),
   bikeSetting('dropHeight', 'Drop height (R)', 'Test', 0, 20, 0.5, 3, 'm', false),
 ]
 

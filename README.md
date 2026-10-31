@@ -27,9 +27,15 @@ This is the second, rebuilt version.
   Hills ride on the big swells. MAP → View has the ground grid.
 - Bike step A, the drop test (BIKE tab): a 180 kg bike + rider on two
   sprung, damped wheels with real gravity, suspension and tyre grip. No
-  engine yet: ↑ pushes it, ↓ brakes, R drops it where you look. Debug
+  engine yet (that came in step B). R drops it where you look. Debug
   lines show the centre of mass, spring compression and force, the
   ground's push on each tyre, and the speed.
+- Bike step B, engine in a straight line: spinning wheels with their own
+  weight, a torque curve, one fixed gear, rev limiter, engine braking,
+  front and rear brakes, and tyres that slip and slide past their grip.
+  ↑ opens the throttle, ↓ brakes. Debug shows rpm, throttle, drive torque
+  and each wheel's slip (red while sliding). No steering or crashes yet:
+  a bike that flips over is dropped again.
 
 ## Controls
 
@@ -42,7 +48,7 @@ This is the second, rebuilt version.
 | Shift | Fly faster |
 | F | Jump the camera behind the bike |
 | R | Drop the bike where you're looking |
-| ↑ / ↓ | Push the bike / brake (until it has an engine) |
+| ↑ / ↓ | Throttle / brakes |
 
 The menu can be dragged by its title bar. Each setting row has a checkbox
 for its debug lines, a slider and a number box. Settings and the menu's

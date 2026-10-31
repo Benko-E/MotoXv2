@@ -14,9 +14,10 @@ export function makeLabel(text: string): Sprite {
   return sprite
 }
 
-export function setLabelText(sprite: Sprite, text: string): void {
-  if (sprite.userData.text === text) return
+export function setLabelText(sprite: Sprite, text: string, color = '#ffffff'): void {
+  if (sprite.userData.text === text && sprite.userData.color === color) return
   sprite.userData.text = text
+  sprite.userData.color = color
 
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
@@ -30,7 +31,7 @@ export function setLabelText(sprite: Sprite, text: string): void {
   ctx.roundRect(0, 0, canvas.width, canvas.height, 16)
   ctx.fill()
   ctx.font = font // resizing the canvas resets it
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = color
   ctx.textBaseline = 'middle'
   ctx.fillText(text, PAD_PX, canvas.height / 2)
 

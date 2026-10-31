@@ -12,6 +12,12 @@ export function readBikeParams(store: SettingsStore): BikeParams {
     frontDamping: store.get('frontDamping') * 1000,
     rearDamping: store.get('rearDamping') * 1000,
     grip: store.get('grip'),
-    push: store.get('pushForce'),
+    slideGrip: store.get('slideGrip') / 100,
+    peakTorque: store.get('peakTorque'),
+    gearRatio: store.get('gearRatio'),
+    revLimit: store.get('revLimit'),
+    engineBraking: store.get('engineBraking'),
+    frontBrake: store.get('frontBrake'),
+    rearBrake: store.get('rearBrake'),
   }
 }
