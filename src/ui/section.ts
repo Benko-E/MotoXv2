@@ -17,7 +17,7 @@ export class Section implements Piece {
   }
 
   get collapsed(): boolean {
-    return this.body.hidden
+    return this.el.classList.contains('collapsed')
   }
 
   add(piece: Piece): this {
@@ -26,7 +26,8 @@ export class Section implements Piece {
   }
 
   toggle(): void {
-    this.body.hidden = !this.body.hidden
-    this.el.classList.toggle('collapsed', this.body.hidden)
+    const collapse = !this.collapsed
+    this.body.hidden = collapse
+    this.el.classList.toggle('collapsed', collapse)
   }
 }
