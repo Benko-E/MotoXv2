@@ -1,6 +1,6 @@
 .menu-window {
   position: fixed;
-  width: 380px;
+  width: 400px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -83,7 +83,7 @@
 
 .menu-row {
   display: grid;
-  grid-template-columns: 20px 80px 1fr 64px 16px 26px;
+  grid-template-columns: 20px 112px 1fr 64px 16px 26px;
   align-items: center;
   gap: 6px;
   padding: 3px 0;

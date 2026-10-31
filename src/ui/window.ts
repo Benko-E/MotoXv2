@@ -2,7 +2,7 @@ import type { Piece } from './page'
 
 /** Height of the title bar, which must always stay on screen. */
 const TITLE_HEIGHT = 32
-const DEFAULT_WIDTH = 380
+const DEFAULT_WIDTH = 400
 
 /**
  * Keeps a window's title bar reachable: never past the left or top edge,

@@ -1,27 +1,42 @@
-import { Color, ShaderMaterial, Vector3 } from 'three'
+import { Color, DoubleSide, type IUniform, ShaderMaterial, Vector3 } from 'three'
+
+/** Uniforms every ground chunk shares, so one change reaches them all. */
+export type SharedGroundUniforms = {
+  cellSize: IUniform<number>
+  showGrid: IUniform<number>
+  /** How strongly the LoD debug tint shows (0 = off). */
+  tintAmount: IUniform<number>
+}
+
+export function makeSharedGroundUniforms(): SharedGroundUniforms {
+  return { cellSize: { value: 1 }, showGrid: { value: 1 }, tintAmount: { value: 0 } }
+}
 
 /**
- * The ground's material. Draws a plain lit ground and, when showGrid is 1,
- * the lines between cells as a pattern on the graphics card, so a million
- * cells cost no more to draw than ten.
+ * The ground's material. Draws lit ground and, when showGrid is 1, the lines
+ * between cells as a pattern on the graphics card, so a million cells cost no
+ * more to draw than ten. `tint` colours the ground for the LoD debug view.
  *
  * Lines fade out where cells get smaller than a few pixels on screen (far
  * away, or tiny cells), instead of piling up into a grey blur.
  */
-export function makeGridMaterial(): ShaderMaterial {
+export function makeGridMaterial(shared: SharedGroundUniforms, tint: Color): ShaderMaterial {
   return new ShaderMaterial({
+    side: DoubleSide, // skirts may face either way
     uniforms: {
+      ...shared,
       groundColor: { value: new Color('#7a8b52') },
       lineColor: { value: new Color('#ffffff') },
-      cellSize: { value: 1 },
-      showGrid: { value: 1 },
       sunDir: { value: new Vector3(300, 500, 200).normalize() },
+      tint: { value: tint },
     },
     vertexShader: /* glsl */ `
       varying vec3 vWorld;
+      varying vec3 vNormal;
       void main() {
         vec4 world = modelMatrix * vec4(position, 1.0);
         vWorld = world.xyz;
+        vNormal = normal;
         gl_Position = projectionMatrix * viewMatrix * world;
       }
     `,
@@ -31,11 +46,14 @@ export function makeGridMaterial(): ShaderMaterial {
       uniform float cellSize;
       uniform float showGrid;
       uniform vec3 sunDir;
+      uniform vec3 tint;
+      uniform float tintAmount;
       varying vec3 vWorld;
+      varying vec3 vNormal;
 
       void main() {
-        float light = 0.55 + 0.45 * max(sunDir.y, 0.0); // flat ground faces up
-        vec3 color = groundColor * light;
+        float light = 0.55 + 0.45 * max(dot(normalize(vNormal), sunDir), 0.0);
+        vec3 color = mix(groundColor, tint, tintAmount) * light;
 
         if (showGrid > 0.5) {
           vec2 coord = vWorld.xz / cellSize;
