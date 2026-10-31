@@ -1,9 +1,10 @@
 import * as THREE from 'three'
 import { FlyCamera } from './camera/flyCamera'
-import { Input } from './camera/input'
+import { Input, isTypingTarget } from './camera/input'
 import { connectMenuKey } from './camera/menuKey'
 import { EdgeOutline } from './render/edgeOutline'
 import { HillDebug, HillFieldDebug, type HillPart } from './render/hillDebug'
+import { ScaleDummy } from './render/scaleDummy'
 import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
 import { SettingsStore } from './settings/store'
@@ -12,6 +13,7 @@ import { cellSizeUsed, type Ground, makeGround } from './world/ground'
 import type { Area, HillShape } from './world/hill'
 import { placeHills } from './world/hills'
 import { readHillRules } from './world/hillSettings'
+import { Roamer } from './world/roamer'
 import { bakeArea, calmBounds, makeNoiseField, type NoiseField, type NoiseRules } from './world/terrain'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -49,6 +51,16 @@ const terrain = new TerrainView(scene)
 const outline = new EdgeOutline(scene)
 const hillDebug = new HillDebug(scene)
 const hillField = new HillFieldDebug(scene)
+const dummy = new ScaleDummy(scene)
+const roamer = new Roamer(7)
+
+/** Drives the scale dummy around the map. */
+function moveDummy(dt: number): void {
+  if (!ground || !store.isOn('showDummy')) return
+  const kmh = store.get('dummySpeed')
+  roamer.update(dt, kmh / 3.6, ground.size)
+  dummy.place(roamer.x, roamer.z, roamer.heading, ground.heightAt)
+}
 const rows = menu.rows
 
 /** Size and cell size the current ground was built with. */
@@ -202,6 +214,8 @@ function applyViews(): void {
   terrain.setDebug(store.debug('detailDistance'))
   terrain.setWireframe(store.isOn('wireframe'))
   for (const [part, ids] of HILL_PARTS) hillDebug.setVisible(part, ids.some((id) => store.debug(id)))
+  dummy.visible = store.isOn('showDummy')
+  dummy.setLabel(store.debug('dummySpeed') ? `bike + rider · 2.1 m · ${store.get('dummySpeed')} km/h` : '')
   hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'), store.debug('noiseCalm'))
 }
 store.onChange(applyViews)
@@ -212,6 +226,18 @@ const input = new Input(window, canvas)
 const fly = new FlyCamera(camera)
 fly.placeOverCorner(store.get('mapSize'))
 connectMenuKey(menu.window, document)
+
+// F: jump the camera just behind the scale dummy
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyF' || e.repeat || isTypingTarget(e.target) || !ground || !store.isOn('showDummy')) return
+  const fx = Math.sin(roamer.heading)
+  const fz = -Math.cos(roamer.heading)
+  const y = ground.heightAt(roamer.x, roamer.z)
+  fly.lookFrom(
+    new THREE.Vector3(roamer.x - fx * 7, y + 3.5, roamer.z - fz * 7),
+    new THREE.Vector3(roamer.x + fx * 4, y + 1, roamer.z + fz * 4),
+  )
+})
 
 function resize(): void {
   renderer.setSize(window.innerWidth, window.innerHeight, false)
@@ -244,6 +270,7 @@ renderer.setAnimationLoop(() => {
   rebakeHillsIfChanged()
   fly.update(dt, input, input.isLooking)
   inspectNearestHill(camera.position)
+  moveDummy(dt)
   terrain.updateLod(camera.position)
   renderer.render(scene, camera)
   updateDetailNote(dt)

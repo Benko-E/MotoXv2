@@ -18,7 +18,7 @@ describe('buildMenu', () => {
     const page = tabs.page('MAP').el
     const titles = [...page.querySelectorAll('.menu-section-title')].map((t) => t.textContent)
     expect(titles).toEqual(['View', 'Terrain', 'Noise', 'Detail', 'Features'])
-    expect(page.querySelectorAll('.menu-row')).toHaveLength(SETTINGS.length)
+    expect(page.querySelectorAll('.menu-row')).toHaveLength(SETTINGS.filter((s) => s.tab === 'MAP').length)
     expect([...rows.keys()].slice(0, 4)).toEqual(['showGrid', 'gridSpacing', 'mapSize', 'cellSize'])
     expect(page.querySelectorAll('.menu-toggle')).toHaveLength(2)
   })
@@ -53,8 +53,9 @@ describe('buildMenu', () => {
     for (const s of seen) expect(Number.isInteger(s)).toBe(true)
   })
 
-  it('leaves the other pages empty', () => {
-    expect(tabs.page('RIDER').el.children).toHaveLength(0)
+  it('puts the scale dummy on the RIDER page and leaves BIKE empty', () => {
+    expect(tabs.page('RIDER').el.contains(rows.get('dummySpeed')!.el)).toBe(true)
+    expect(tabs.page('BIKE').el.children).toHaveLength(0)
   })
 
   it('Copy changes sits left of Reset all and copies only changed settings', async () => {

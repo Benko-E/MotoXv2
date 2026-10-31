@@ -1,4 +1,4 @@
-import { MathUtils, type PerspectiveCamera } from 'three'
+import { Vector3, MathUtils, type PerspectiveCamera } from 'three'
 import type { Input } from './input'
 
 /** Flying feel. Not in the menu yet. */
@@ -52,8 +52,13 @@ export class FlyCamera {
 
   /** Puts the camera above one corner of the map, looking at its middle. */
   placeOverCorner(mapSize: number): void {
-    const p = this.camera.position.set(-0.6 * mapSize, 0.5 * mapSize, 0.6 * mapSize)
-    const look = p.clone().negate().normalize()
+    this.lookFrom(new Vector3(-0.6 * mapSize, 0.5 * mapSize, 0.6 * mapSize), new Vector3())
+  }
+
+  /** Moves the camera to `position`, facing `target`. */
+  lookFrom(position: Vector3, target: Vector3): void {
+    this.camera.position.copy(position)
+    const look = target.clone().sub(position).normalize()
     this.yaw = Math.atan2(-look.x, -look.z)
     this.pitch = MathUtils.clamp(Math.asin(look.y), -MAX_PITCH, MAX_PITCH)
     this.applyRotation()

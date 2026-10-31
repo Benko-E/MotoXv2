@@ -57,4 +57,14 @@ describe('FlyCamera', () => {
     const toMiddle = camera.position.clone().negate().normalize()
     expect(look.dot(toMiddle)).toBeGreaterThan(0.999)
   })
+
+  it('lookFrom stands at a spot and faces the target', () => {
+    const cam = new PerspectiveCamera()
+    const fly = new FlyCamera(cam)
+    fly.lookFrom(new Vector3(10, 5, 10), new Vector3(10, 2, 0))
+    expect(cam.position.toArray()).toEqual([10, 5, 10])
+    const ahead = new Vector3(0, 0, -1).applyQuaternion(cam.quaternion)
+    const want = new Vector3(0, -3, -10).normalize()
+    expect(ahead.distanceTo(want)).toBeLessThan(1e-6)
+  })
 })

@@ -25,6 +25,8 @@ This is the second, rebuilt version.
   and Calm distance, how far past a hill's foot the small bumps stay
   smoothed out (its debug lines draw a blue ring where the calm ends).
   Hills ride on the big swells. MAP → View has the ground grid.
+- Scale dummy (RIDER → Scale dummy): a bike-and-rider-sized pair of boxes
+  that roams the map on its own, for a sense of scale. F jumps to it.
 
 ## Controls
 
@@ -35,6 +37,7 @@ This is the second, rebuilt version.
 | W A S D | Fly forward, left, back, right |
 | Space / C | Fly up / down |
 | Shift | Fly faster |
+| F | Jump the camera behind the scale dummy |
 
 The menu can be dragged by its title bar. Each setting row has a checkbox
 for its debug lines, a slider and a number box. Settings and the menu's
