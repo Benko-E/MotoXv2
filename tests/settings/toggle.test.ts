@@ -42,6 +42,16 @@ describe('on/off settings', () => {
     expect(store.isOn('wireframe')).toBe(false)
   })
 
+  it('lists only the settings changed from their defaults', () => {
+    const store = new SettingsStore(SETTINGS, fakeStorage())
+    expect(store.changedFromDefaults()).toEqual({})
+    store.set('mapSize', 2000)
+    store.setOn('wireframe', true)
+    store.setDebug('cellSize', false) // debug lines are not settings to bake in
+    store.set('cellSize', 1) // same as the default
+    expect(store.changedFromDefaults()).toEqual({ mapSize: 2000, wireframe: true })
+  })
+
   it('a saved value of the wrong kind is ignored', () => {
     const odd = '{"values":{"wireframe":5,"mapSize":true}}'
     const store = new SettingsStore(SETTINGS, fakeStorage({ 'motox.settings': odd }))

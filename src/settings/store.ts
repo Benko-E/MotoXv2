@@ -73,6 +73,16 @@ export class SettingsStore {
     for (const id of this.byId.keys()) this.reset(id)
   }
 
+  /** Every setting whose value differs from its default (debug flags left out). */
+  changedFromDefaults(): Record<string, Value> {
+    const changed: Record<string, Value> = {}
+    for (const [id, s] of this.byId) {
+      const v = this.values.get(id)!
+      if (v !== s.default) changed[id] = v
+    }
+    return changed
+  }
+
   /** Calls `fn` with the setting's id on every change. Returns an unsubscribe. */
   onChange(fn: (id: string) => void): () => void {
     this.listeners.add(fn)

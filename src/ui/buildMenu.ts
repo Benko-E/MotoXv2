@@ -1,6 +1,7 @@
 import type { SettingsStore } from '../settings/store'
 import type { Setting } from '../settings/types'
 import './menu.css'
+import { copyText } from './clipboard'
 import { Section } from './section'
 import type { Row } from './page'
 import { SliderRow } from './sliderRow'
@@ -17,8 +18,23 @@ export function buildMenu(
   tabs: readonly string[],
   store: SettingsStore,
   storage: Storage | null,
+  copy: (text: string) => Promise<void> = copyText,
 ): { window: MenuWindow; tabs: Tabs; rows: Map<string, Row> } {
   const menu = new MenuWindow('MotoX debug', storage)
+
+  // Copies the settings changed from their defaults, to paste back to Claude.
+  const copyButton = menu.addTitleButton('Copy changes', async () => {
+    const changed = store.changedFromDefaults()
+    const count = Object.keys(changed).length
+    let label = count === 0 ? 'No changes' : `Copied ${count}`
+    try {
+      await copy(JSON.stringify(changed, null, 2))
+    } catch {
+      label = 'Copy failed'
+    }
+    copyButton.textContent = label
+    setTimeout(() => (copyButton.textContent = 'Copy changes'), 1500)
+  })
   menu.addTitleButton('Reset all', () => store.resetAll())
 
   const tabSet = new Tabs(tabs)

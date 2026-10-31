@@ -63,13 +63,14 @@ export class MenuWindow implements Piece {
     return this
   }
 
-  /** Adds a button to the right side of the title bar. */
-  addTitleButton(label: string, onClick: () => void): void {
+  /** Adds a button to the right side of the title bar, after any already there. */
+  addTitleButton(label: string, onClick: () => void): HTMLButtonElement {
     const button = document.createElement('button')
     button.type = 'button'
     button.textContent = label
     button.addEventListener('click', onClick)
     this.buttons.append(button)
+    return button
   }
 
   open(): void {

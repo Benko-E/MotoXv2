@@ -35,6 +35,7 @@
   cursor: move;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+.menu-titlebuttons { display: flex; gap: 6px; }
 .menu-titlebuttons button { font-size: 12px; padding: 2px 8px; }
 
 /* The body and every tab page shrink to fit, so an overfull page scrolls. */

@@ -27,6 +27,22 @@ describe('buildMenu', () => {
     expect(tabs.page('RIDER').el.children).toHaveLength(0)
   })
 
+  it('Copy changes sits left of Reset all and copies only changed settings', async () => {
+    const copied: string[] = []
+    const own = new SettingsStore(SETTINGS, fakeStorage())
+    const built = buildMenu(SETTINGS, TABS, own, fakeStorage(), async (text) => {
+      copied.push(text)
+    })
+    const buttons = [...built.window.el.querySelectorAll('.menu-titlebuttons button')]
+    expect(buttons.map((b) => b.textContent)).toEqual(['Copy changes', 'Reset all'])
+    own.set('mapSize', 2500)
+    ;(buttons[0] as HTMLButtonElement).click()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(JSON.parse(copied[0])).toEqual({ mapSize: 2500 })
+    expect(buttons[0].textContent).toBe('Copied 1')
+  })
+
   it('has a reset-all button that resets every setting', () => {
     store.set('mapSize', 2000)
     const btn = [...menu.el.querySelectorAll('button')].find((b) => b.textContent === 'Reset all')!
