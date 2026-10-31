@@ -77,23 +77,40 @@ export function joinAreas(a: Area, b: Area): Area {
   }
 }
 
-/**
- * Recalculates the heights inside `area` as flat ground plus the hill.
- * Bake the hill's old and new areas together when it moves, so nothing of
- * the old one is left behind.
- */
-export function bakeHill(ground: Ground, hill: HillShape, area: Area): void {
-  const { cells, cellSize, samples, heights } = ground
+/** The sample index range covering `area`, clamped to the map. */
+function indexRange(ground: Ground, area: Area) {
+  const { cells, cellSize } = ground
   const half = ground.size / 2
   const toIndex = (v: number) => Math.min(Math.max(v, 0), cells)
-  const ix0 = toIndex(Math.floor((area.minX + half) / cellSize))
-  const ix1 = toIndex(Math.ceil((area.maxX + half) / cellSize))
-  const iz0 = toIndex(Math.floor((area.minZ + half) / cellSize))
-  const iz1 = toIndex(Math.ceil((area.maxZ + half) / cellSize))
+  return {
+    ix0: toIndex(Math.floor((area.minX + half) / cellSize)),
+    ix1: toIndex(Math.ceil((area.maxX + half) / cellSize)),
+    iz0: toIndex(Math.floor((area.minZ + half) / cellSize)),
+    iz1: toIndex(Math.ceil((area.maxZ + half) / cellSize)),
+  }
+}
+
+/** Sets the heights inside `area` back to flat ground. */
+export function flattenArea(ground: Ground, area: Area): void {
+  const { ix0, ix1, iz0, iz1 } = indexRange(ground, area)
+  for (let iz = iz0; iz <= iz1; iz++) ground.heights.fill(0, iz * ground.samples + ix0, iz * ground.samples + ix1 + 1)
+}
+
+/**
+ * Raises the ground to the hill wherever the hill is higher, so where two
+ * hills meet the higher one wins. Flatten the old hills' areas first when
+ * hills move.
+ */
+export function addHill(ground: Ground, hill: HillShape): void {
+  const { cellSize, samples, heights } = ground
+  const half = ground.size / 2
+  const { ix0, ix1, iz0, iz1 } = indexRange(ground, hillBounds(hill))
   for (let iz = iz0; iz <= iz1; iz++) {
     const z = -half + iz * cellSize
     for (let ix = ix0; ix <= ix1; ix++) {
-      heights[iz * samples + ix] = hillHeight(hill, -half + ix * cellSize, z)
+      const i = iz * samples + ix
+      const h = hillHeight(hill, -half + ix * cellSize, z)
+      if (h > heights[i]) heights[i] = h
     }
   }
 }

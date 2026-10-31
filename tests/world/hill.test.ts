@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeGround } from '../../src/world/ground'
-import { bakeHill, type HillShape, hillBounds, hillHeight, profile } from '../../src/world/hill'
+import { addHill, flattenArea, type HillShape, hillBounds, hillHeight, profile } from '../../src/world/hill'
 
 /** Facing north (0°): the run-down side (D) is towards −z, the run-up (A) towards +z. */
 const hill: HillShape = {
@@ -65,24 +65,29 @@ describe('hillHeight', () => {
   })
 })
 
-describe('bakeHill', () => {
-  it('writes the hill into the heightmap inside the area', () => {
+describe('baking hills', () => {
+  it('writes the hill into the heightmap', () => {
     const ground = makeGround(400, 2)
-    const area = hillBounds(hill)
-    bakeHill(ground, hill, area)
+    addHill(ground, hill)
     expect(ground.heightAt(0, 0)).toBeCloseTo(30)
     expect(ground.heightAt(0, 30)).toBeCloseTo(hillHeight(hill, 0, 30))
     expect(ground.heightAt(150, 150)).toBe(0)
   })
 
-  it('a moved hill leaves no trace where it was, when both areas are baked', () => {
+  it('where two hills meet, the higher ground wins', () => {
     const ground = makeGround(400, 2)
-    bakeHill(ground, hill, hillBounds(hill))
-    const moved = { ...hill, x: 150 }
-    const a = hillBounds(hill)
-    const b = hillBounds(moved)
-    const both = { minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minZ: Math.min(a.minZ, b.minZ), maxZ: Math.max(a.maxZ, b.maxZ) }
-    bakeHill(ground, moved, both)
+    const other = { ...hill, x: 60, height: 10 }
+    addHill(ground, hill)
+    addHill(ground, other)
+    expect(ground.heightAt(0, 0)).toBeCloseTo(30)
+    expect(ground.heightAt(60, 0)).toBeCloseTo(Math.max(10, hillHeight(hill, 60, 0)))
+  })
+
+  it('flattening the old area leaves no trace of a moved hill', () => {
+    const ground = makeGround(400, 2)
+    addHill(ground, hill)
+    flattenArea(ground, hillBounds(hill))
+    addHill(ground, { ...hill, x: 150 })
     expect(ground.heightAt(0, 0)).toBe(0)
     expect(ground.heightAt(150, 0)).toBeCloseTo(30)
   })
