@@ -87,7 +87,7 @@ the ground; labels stay a readable size at any distance.
 ## Camera
 
 - Starts above one corner of the map looking at the middle, whole map in view.
-- WASD move, Space up, Ctrl down, Shift faster; mouse look while the menu is
+- WASD move, Space up, C down, Shift faster; mouse look while the menu is
   closed.
 - No camera settings in the menu yet.
 
