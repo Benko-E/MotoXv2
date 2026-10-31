@@ -89,6 +89,7 @@
   padding: 3px 0;
 }
 .menu-range { width: 100%; }
+.menu-toggle { justify-self: start; width: 18px; height: 18px; }
 .menu-number {
   width: 100%;
   box-sizing: border-box;

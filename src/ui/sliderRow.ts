@@ -1,12 +1,12 @@
 import type { SettingsStore } from '../settings/store'
 import type { SliderSetting } from '../settings/types'
-import type { Piece } from './page'
+import type { Row } from './page'
 
 /**
  * One number setting: debug checkbox, name, slider, number box, reset button,
  * and an optional note underneath.
  */
-export class SliderRow implements Piece {
+export class SliderRow implements Row {
   readonly el = document.createElement('div')
   private readonly debug = document.createElement('input')
   private readonly range = document.createElement('input')

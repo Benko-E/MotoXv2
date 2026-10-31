@@ -14,12 +14,13 @@ describe('buildMenu', () => {
     expect(names).toEqual(['MAP', 'RIDER', 'BIKE', 'AI'])
   })
 
-  it('puts a Terrain section with both settings on the MAP page', () => {
+  it('puts Terrain and Detail sections on the MAP page', () => {
     const page = tabs.page('MAP').el
     const titles = [...page.querySelectorAll('.menu-section-title')].map((t) => t.textContent)
-    expect(titles).toEqual(['Terrain'])
-    expect(page.querySelectorAll('.menu-row')).toHaveLength(2)
-    expect([...rows.keys()]).toEqual(['mapSize', 'cellSize'])
+    expect(titles).toEqual(['Terrain', 'Detail'])
+    expect(page.querySelectorAll('.menu-row')).toHaveLength(4)
+    expect([...rows.keys()]).toEqual(['mapSize', 'cellSize', 'detailDistance', 'wireframe'])
+    expect(page.querySelectorAll('.menu-toggle')).toHaveLength(1)
   })
 
   it('leaves the other pages empty', () => {

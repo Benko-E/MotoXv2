@@ -1,6 +1,7 @@
-import type { Setting } from './types'
+import type { Setting, SliderSetting, ToggleSetting } from './types'
 
-type Saved = { values: Record<string, number>; debug: Record<string, boolean> }
+type Value = number | boolean
+type Saved = { values: Record<string, Value>; debug: Record<string, boolean> }
 
 /**
  * Holds every setting's current value and debug-lines flag. Tells listeners
@@ -8,7 +9,7 @@ type Saved = { values: Record<string, number>; debug: Record<string, boolean> }
  */
 export class SettingsStore {
   private readonly byId = new Map<string, Setting>()
-  private readonly values = new Map<string, number>()
+  private readonly values = new Map<string, Value>()
   private readonly debugs = new Map<string, boolean>()
   private readonly listeners = new Set<(id: string) => void>()
 
@@ -25,15 +26,28 @@ export class SettingsStore {
     this.load()
   }
 
+  /** A slider's value. */
   get(id: string): number {
-    this.setting(id)
-    return this.values.get(id)!
+    this.slider(id)
+    return this.values.get(id) as number
   }
 
   set(id: string, value: number): void {
-    const s = this.setting(id)
+    const s = this.slider(id)
     if (!Number.isFinite(value)) return
-    this.values.set(id, Math.min(s.max, Math.max(s.min, value)))
+    this.values.set(id, clamp(s, value))
+    this.changed(id)
+  }
+
+  /** An on/off setting's state. */
+  isOn(id: string): boolean {
+    this.toggle(id)
+    return this.values.get(id) as boolean
+  }
+
+  setOn(id: string, on: boolean): void {
+    this.toggle(id)
+    this.values.set(id, on)
     this.changed(id)
   }
 
@@ -71,6 +85,18 @@ export class SettingsStore {
     return s
   }
 
+  private slider(id: string): SliderSetting {
+    const s = this.setting(id)
+    if (s.kind !== 'slider') throw new Error(`"${id}" is not a slider`)
+    return s
+  }
+
+  private toggle(id: string): ToggleSetting {
+    const s = this.setting(id)
+    if (s.kind !== 'toggle') throw new Error(`"${id}" is not an on/off setting`)
+    return s
+  }
+
   private changed(id: string): void {
     this.save()
     for (const fn of this.listeners) fn(id)
@@ -85,9 +111,10 @@ export class SettingsStore {
     }
     for (const [id, s] of this.byId) {
       const v = saved?.values?.[id]
-      if (typeof v === 'number' && Number.isFinite(v)) {
-        this.values.set(id, Math.min(s.max, Math.max(s.min, v)))
+      if (s.kind === 'slider' && typeof v === 'number' && Number.isFinite(v)) {
+        this.values.set(id, clamp(s, v))
       }
+      if (s.kind === 'toggle' && typeof v === 'boolean') this.values.set(id, v)
       const d = saved?.debug?.[id]
       if (typeof d === 'boolean') this.debugs.set(id, d)
     }
@@ -104,4 +131,8 @@ export class SettingsStore {
       // storage full or blocked: settings still work for this visit
     }
   }
+}
+
+function clamp(s: SliderSetting, value: number): number {
+  return Math.min(s.max, Math.max(s.min, value))
 }
