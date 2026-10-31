@@ -63,7 +63,7 @@ export function hillHeight(hill: HillShape, x: number, z: number): number {
 
 /** The square the hill can reach into. */
 export function hillBounds(hill: HillShape): Area {
-  const r = Math.max(hill.runUp.length, hill.runDown.length)
+  const r = Math.max(hill.runUp.length, hill.runDown.length, hill.top)
   return { minX: hill.x - r, maxX: hill.x + r, minZ: hill.z - r, maxZ: hill.z + r }
 }
 

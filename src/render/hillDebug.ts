@@ -145,7 +145,8 @@ function footRadius(hill: HillShape, d: Vector3): number {
 }
 
 function dispose(object: Object3D): void {
-  const o = object as Object3D & { geometry?: { dispose(): void }; material?: { map?: { dispose(): void } | null } }
+  const o = object as Object3D & { geometry?: { dispose(): void }; material?: { dispose(): void; map?: { dispose(): void } | null } }
   o.geometry?.dispose()
   o.material?.map?.dispose()
+  o.material?.dispose() // label sprites each have their own material
 }

@@ -23,6 +23,7 @@ export function buildMenu(
   const menu = new MenuWindow('MotoX debug', storage)
 
   // Copies the settings changed from their defaults, to paste back to Claude.
+  let restoreLabel: ReturnType<typeof setTimeout> | undefined
   const copyButton = menu.addTitleButton('Copy changes', async () => {
     const changed = store.changedFromDefaults()
     const count = Object.keys(changed).length
@@ -33,7 +34,8 @@ export function buildMenu(
       label = 'Copy failed'
     }
     copyButton.textContent = label
-    setTimeout(() => (copyButton.textContent = 'Copy changes'), 1500)
+    clearTimeout(restoreLabel) // a quick second click keeps its own label up
+    restoreLabel = setTimeout(() => (copyButton.textContent = 'Copy changes'), 1500)
   })
   menu.addTitleButton('Reset all', () => store.resetAll())
 

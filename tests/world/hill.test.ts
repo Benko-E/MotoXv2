@@ -90,4 +90,11 @@ describe('bakeHill', () => {
   it('bounds cover the longest side', () => {
     expect(hillBounds(hill)).toEqual({ minX: -120, maxX: 120, minZ: -120, maxZ: 120 })
   })
+
+  it('bounds cover a flat top wider than both sides', () => {
+    const wide = { ...hill, top: 100, runUp: { ...hill.runUp, length: 5 }, runDown: { ...hill.runDown, length: 5 } }
+    const b = hillBounds(wide)
+    expect(b.maxX - wide.x).toBeGreaterThanOrEqual(100)
+    expect(wide.z - b.minZ).toBeGreaterThanOrEqual(100)
+  })
 })

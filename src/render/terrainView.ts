@@ -91,9 +91,11 @@ export class TerrainView {
    */
   heightsChanged(area: Area): void {
     if (!this.ground) return
+    // One cell wider: a point's lighting uses the heights one cell either side.
+    const pad = this.ground.cellSize
     for (const chunk of this.chunks) {
       const b = chunk.box
-      if (b.max.x < area.minX || b.min.x > area.maxX || b.max.z < area.minZ || b.min.z > area.maxZ) continue
+      if (b.max.x < area.minX - pad || b.min.x > area.maxX + pad || b.max.z < area.minZ - pad || b.min.z > area.maxZ + pad) continue
       const [low, high] = heightRange(this.ground, chunk.xr, chunk.zr)
       b.min.y = low
       b.max.y = high

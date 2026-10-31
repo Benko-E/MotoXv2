@@ -12,6 +12,11 @@ This is the second, rebuilt version.
   the ground is drawn in chunks that get coarser with distance. MAP → Detail
   has the Detail distance (tick it to tint chunks by detail level) and
   Wireframe.
+- Step 3: one hand-tuned hill (MAP → Hill): position, facing, height, flat
+  top, and a run-up and run-down side, each with length, foot and shoulder.
+  Its debug lines draw the pole, the profile curves and the A/B/C/D points.
+  **Copy changes** (top right of the menu) copies every setting you changed
+  from its default, so it can be pasted back to become the new default.
 
 ## Controls
 
