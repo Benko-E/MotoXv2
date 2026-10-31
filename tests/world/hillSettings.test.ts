@@ -11,7 +11,7 @@ describe('readHillRules', () => {
     const rules = readHillRules(store)
     expect(rules.count).toBe(12)
     expect(rules.spacing).toBe(40)
-    expect(rules.height).toEqual({ value: 30, variation: 50, min: 1 })
+    expect(rules.height).toEqual({ value: 20, variation: 50, min: 1 })
     expect(rules.top).toEqual({ value: 3, variation: 100, min: 0 })
     expect(rules.runUp.length).toEqual({ value: 120, variation: 30, min: 5 })
     expect(rules.runDown.shoulder).toEqual({ value: 2.5, variation: 20, min: 1 })
