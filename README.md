@@ -17,6 +17,10 @@ This is the second, rebuilt version.
   Its debug lines draw the pole, the profile curves and the A/B/C/D points.
   **Copy changes** (top right of the menu) copies every setting you changed
   from its default, so it can be pasted back to become the new default.
+- Step 4: many hills from a seed (MAP → Features → Hill). Seed with a 🎲
+  reroll, Count, Spacing, and each shape setting with a ± Variation under
+  it. Debug lines show every hill's pole, footprint and spacing ring; the
+  hill nearest the camera gets the full drawing with its own numbers.
 
 ## Controls
 

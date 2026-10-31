@@ -60,16 +60,17 @@ let hillsKey = ''
 let inspected: HillShape | null = null
 
 function currentHillsKey(): string {
-  return JSON.stringify([readHillRules(store), store.get('seed')])
+  return JSON.stringify([readHillRules(store), Math.round(store.get('seed'))])
 }
 
 /** Places the hills for the current settings and bakes them into the ground. */
 function bakeHills(g: Ground): void {
-  hills = placeHills(readHillRules(store), g.size, store.get('seed'))
+  hills = placeHills(readHillRules(store), g.size, Math.round(store.get('seed')))
   hillsKey = currentHillsKey()
   for (const h of hills) addHill(g, h)
   hillField.update(hills, store.get('hillSpacing'))
   inspected = null
+  hillDebug.clear() // redrawn on the nearest hill next frame, if any is left
   rows.get('hillCount')?.setNote(`placed ${hills.length} of ${store.get('hillCount')}`)
 }
 

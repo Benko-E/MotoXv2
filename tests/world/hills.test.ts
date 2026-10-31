@@ -95,6 +95,12 @@ describe('placeHills', () => {
     expect(taller[0].facing).toBe(hills[0].facing)
   })
 
+  it('changing a length keeps the hill on the same spot', () => {
+    const longer = placeHills({ ...rules, runUp: { ...rules.runUp, length: v(130, 30, 5) } }, 1000, 1337)
+    expect(longer[0].x).toBe(hills[0].x)
+    expect(longer[0].z).toBe(hills[0].z)
+  })
+
   it('places none when Count is 0 or no hill fits', () => {
     expect(placeHills({ ...rules, count: 0 }, 1000, 1337)).toEqual([])
     expect(placeHills(rules, 100, 1337)).toEqual([])

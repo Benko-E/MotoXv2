@@ -75,8 +75,11 @@ export function placeHills(rules: HillRules, mapSize: number, seed: number): Hil
     if (r > half) continue
     const where = randomStream(mix(seed, 2 * i + 1))
     for (let t = 0; t < TRIES; t++) {
-      hill.x = -half + r + where() * (mapSize - 2 * r)
-      hill.z = -half + r + where() * (mapSize - 2 * r)
+      // Spots are picked across the whole map, not shrunk by the hill's
+      // size, so a size change leaves the hill where it was.
+      hill.x = -half + where() * mapSize
+      hill.z = -half + where() * mapSize
+      if (Math.abs(hill.x) + r > half || Math.abs(hill.z) + r > half) continue
       const clear = placed.every(
         (o) => Math.hypot(o.x - hill.x, o.z - hill.z) >= r + hillRadius(o) + rules.spacing,
       )
