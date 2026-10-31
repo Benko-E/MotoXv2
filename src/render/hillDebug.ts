@@ -4,7 +4,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js'
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
-import { type HillShape, hillHeight } from '../world/hill'
+import { type HillShape, hillReach } from '../world/hill'
 import { hillRadius } from '../world/hills'
 import { makeLabel } from './label'
 
@@ -82,14 +82,16 @@ export class HillDebug {
     this.materials.length = 0
   }
 
-  /** Redraws everything for `hill`, standing on flat ground at height `base`. */
-  update(hill: HillShape, base = 0): void {
+  /** Redraws everything for `hill`, on ground whose height is `heightAt`. */
+  update(hill: HillShape, heightAt: HeightAt): void {
+    // The ground level the hill stands on, at its pole
+    const base = heightAt(hill.x, hill.z) - hill.height
+    const ground = (p: Vector3, lift = LIFT) => p.setY(heightAt(p.x, p.z) + lift)
     this.clear()
 
     const f = (hill.facing * Math.PI) / 180
     const toD = new Vector3(Math.sin(f), 0, -Math.cos(f))
     const pole = new Vector3(hill.x, base, hill.z)
-    const surface = (x: number, z: number) => base + hillHeight(hill, x, z) + LIFT
     const at = (dir: Vector3, r: number) => pole.clone().addScaledVector(dir, r)
 
     // B: where the pole stands
@@ -127,12 +129,12 @@ export class HillDebug {
     for (const [part, dir, shape, letter] of sides) {
       const length = shape.length
       const foot = at(dir, length)
-      this.add(part, this.line([pole.clone().setY(base + LIFT), foot.clone().setY(base + LIFT)], FRAME, 3))
+      this.add(part, this.line([pole.clone().setY(base + LIFT), ground(foot.clone())], FRAME, 3))
 
       const curve = []
       for (let i = 0; i <= STEPS; i++) {
         const p = at(dir, (i / STEPS) * length)
-        curve.push(p.setY(surface(p.x, p.z)))
+        curve.push(ground(p))
       }
       this.add(part, this.line(curve, PROFILE, 4))
 
@@ -142,16 +144,16 @@ export class HillDebug {
       for (let i = 0; i <= STEPS; i++) {
         const a = facingAngle - Math.PI / 2 + (i / STEPS) * Math.PI
         const d = new Vector3(Math.sin(a), 0, -Math.cos(a))
-        half.push(at(d, footRadius(hill, d)).setY(base + LIFT))
+        half.push(ground(at(d, footRadius(hill, d))))
       }
       this.add(part, this.line(half, PROFILE, 2))
       const text = `${letter} · ${metres(length)} · foot ${shape.foot.toFixed(1)} · shoulder ${shape.shoulder.toFixed(1)}`
-      this.add(part, this.label(text, foot.clone().setY(base + 3)))
+      this.add(part, this.label(text, ground(foot.clone(), 3)))
 
       // Slope mesh: the foot is the lower half of the slope, the shoulder the
       // upper half, so each checkbox shows the part its number shapes.
-      this.slopeMesh(hill, dir, base, `${part}Foot` as HillPart, 0, 0.5)
-      this.slopeMesh(hill, dir, base, `${part}Shoulder` as HillPart, 0.5, 1)
+      this.slopeMesh(hill, dir, heightAt, `${part}Foot` as HillPart, 0, 0.5)
+      this.slopeMesh(hill, dir, heightAt, `${part}Shoulder` as HillPart, 0.5, 1)
     }
 
     if (this.size) this.setResolution(this.size.width, this.size.height)
@@ -164,7 +166,7 @@ export class HillDebug {
    * (0 = foot, 1 = top edge): lines running down the slope, and rings at
    * even steps across it. Where the rings bunch up, the slope is steep.
    */
-  private slopeMesh(hill: HillShape, dir: Vector3, base: number, part: HillPart, u0: number, u1: number): void {
+  private slopeMesh(hill: HillShape, dir: Vector3, heightAt: HeightAt, part: HillPart, u0: number, u1: number): void {
     const centre = Math.atan2(dir.x, -dir.z)
     const half = (MESH_HALF_ANGLE * Math.PI) / 180
     const at = (angle: number, u: number) => {
@@ -172,7 +174,7 @@ export class HillDebug {
       const r = hill.top + (1 - u) * (footRadius(hill, d) - hill.top)
       const x = hill.x + d.x * r
       const z = hill.z + d.z * r
-      return new Vector3(x, base + hillHeight(hill, x, z) + LIFT, z)
+      return new Vector3(x, heightAt(x, z) + LIFT, z)
     }
     for (let i = 0; i < MESH_DOWN_LINES; i++) {
       const angle = centre - half + (2 * half * i) / (MESH_DOWN_LINES - 1)
@@ -224,15 +226,18 @@ function metres(m: number): string {
 export class HillFieldDebug {
   private readonly poles: LineSegments2
   private readonly rings: LineSegments2
+  private readonly calmRings: LineSegments2
   private readonly materials: LineMaterial[]
 
   constructor(scene: Scene) {
     const poleMaterial = new LineMaterial({ color: PROFILE, linewidth: 2, depthTest: false, transparent: true })
     const ringMaterial = new LineMaterial({ color: 0xffffff, linewidth: 1.5, depthTest: false, transparent: true, opacity: 0.5 })
-    this.materials = [poleMaterial, ringMaterial]
+    const calmMaterial = new LineMaterial({ color: 0x4dc3ff, linewidth: 2, depthTest: false, transparent: true, opacity: 0.8 })
+    this.materials = [poleMaterial, ringMaterial, calmMaterial]
     this.poles = new LineSegments2(new LineSegmentsGeometry(), poleMaterial)
     this.rings = new LineSegments2(new LineSegmentsGeometry(), ringMaterial)
-    for (const l of [this.poles, this.rings]) {
+    this.calmRings = new LineSegments2(new LineSegmentsGeometry(), calmMaterial)
+    for (const l of [this.poles, this.rings, this.calmRings]) {
       l.renderOrder = 9
       l.frustumCulled = false
       scene.add(l)
@@ -243,37 +248,40 @@ export class HillFieldDebug {
     for (const m of this.materials) m.resolution.set(width, height)
   }
 
-  setVisible(poles: boolean, rings: boolean): void {
+  setVisible(poles: boolean, rings: boolean, calmRings: boolean): void {
     this.poles.visible = poles
     this.rings.visible = rings
+    this.calmRings.visible = calmRings
   }
 
-  update(hills: HillShape[], spacing: number, base = 0): void {
+  /** `calm` > 0 also draws where the noise's calm zone ends (rings at the foot + calm). */
+  update(hills: HillShape[], spacing: number, calm: number, heightAt: HeightAt): void {
     const poles: number[] = []
     const rings: number[] = []
+    const calmRings: number[] = []
+    const onGround = (x: number, z: number) => [x, heightAt(x, z) + LIFT, z]
     for (const hill of hills) {
-      poles.push(hill.x, base, hill.z, hill.x, base + hill.height, hill.z)
-      // Footprint outline, where the hill meets the ground
-      let previous: Vector3 | null = null
-      for (let i = 0; i <= STEPS; i++) {
-        const a = (i / STEPS) * Math.PI * 2
-        const d = new Vector3(Math.sin(a), 0, -Math.cos(a))
-        const p = new Vector3(hill.x, base + LIFT, hill.z).addScaledVector(d, footRadius(hill, d))
-        if (previous) poles.push(previous.x, previous.y, previous.z, p.x, p.y, p.z)
-        previous = p
-      }
+      const top = heightAt(hill.x, hill.z)
+      poles.push(hill.x, top - hill.height, hill.z, hill.x, top, hill.z)
       const r = hillRadius(hill) + spacing / 2
       for (let i = 0; i < STEPS; i++) {
         const a0 = (i / STEPS) * Math.PI * 2
         const a1 = ((i + 1) / STEPS) * Math.PI * 2
-        rings.push(
-          hill.x + Math.sin(a0) * r, base + LIFT, hill.z - Math.cos(a0) * r,
-          hill.x + Math.sin(a1) * r, base + LIFT, hill.z - Math.cos(a1) * r,
-        )
+        const d0 = new Vector3(Math.sin(a0), 0, -Math.cos(a0))
+        const d1 = new Vector3(Math.sin(a1), 0, -Math.cos(a1))
+        // Footprint outline, where the hill meets the ground
+        const f0 = footRadius(hill, d0)
+        const f1 = footRadius(hill, d1)
+        poles.push(...onGround(hill.x + d0.x * f0, hill.z + d0.z * f0), ...onGround(hill.x + d1.x * f1, hill.z + d1.z * f1))
+        rings.push(...onGround(hill.x + d0.x * r, hill.z + d0.z * r), ...onGround(hill.x + d1.x * r, hill.z + d1.z * r))
+        const c0 = f0 + calm
+        const c1 = f1 + calm
+        calmRings.push(...onGround(hill.x + d0.x * c0, hill.z + d0.z * c0), ...onGround(hill.x + d1.x * c1, hill.z + d1.z * c1))
       }
     }
     replaceSegments(this.poles, poles)
     replaceSegments(this.rings, rings)
+    replaceSegments(this.calmRings, calmRings)
   }
 }
 
@@ -286,11 +294,11 @@ function replaceSegments(line: LineSegments2, positions: number[]): void {
 
 /** How far the hill reaches from the pole in direction `d` (where it meets the ground). */
 function footRadius(hill: HillShape, d: Vector3): number {
-  const f = (hill.facing * Math.PI) / 180
-  const towardsD = d.x * Math.sin(f) - d.z * Math.cos(f)
-  const w = (1 + towardsD) / 2
-  return hill.runUp.length + (hill.runDown.length - hill.runUp.length) * w
+  return hillReach(hill, d.x, d.z)
 }
+
+/** Ground height at a spot on the map. */
+export type HeightAt = (x: number, z: number) => number
 
 function dispose(object: Object3D): void {
   const o = object as Object3D & { geometry?: { dispose(): void }; material?: { dispose(): void; map?: { dispose(): void } | null } }

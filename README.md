@@ -21,6 +21,10 @@ This is the second, rebuilt version.
   reroll, Count, Spacing, and each shape setting with a ± Variation under
   it. Debug lines show every hill's pole, footprint and spacing ring; the
   hill nearest the camera gets the full drawing with its own numbers.
+- Step 5: rolling ground (MAP → Noise): Bump height, Bump width, Detail,
+  and Calm distance, how far past a hill's foot the small bumps stay
+  smoothed out (its debug lines draw a blue ring where the calm ends).
+  Hills ride on the big swells. MAP → View has the ground grid.
 
 ## Controls
 

@@ -9,9 +9,10 @@ import { SETTINGS, TABS } from './settings/list'
 import { SettingsStore } from './settings/store'
 import { buildMenu } from './ui/buildMenu'
 import { cellSizeUsed, type Ground, makeGround } from './world/ground'
-import { addHill, flattenArea, type HillShape, hillBounds } from './world/hill'
+import type { Area, HillShape } from './world/hill'
 import { placeHills } from './world/hills'
 import { readHillRules } from './world/hillSettings'
+import { bakeArea, calmBounds, makeNoiseField, type NoiseField, type NoiseRules } from './world/terrain'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
 const ui = document.querySelector<HTMLDivElement>('#ui')!
@@ -56,34 +57,82 @@ let ground: Ground | null = null
 let hills: HillShape[] = []
 /** The rules and seed the current hills were placed with. */
 let hillsKey = ''
+let noiseRules: NoiseRules = readNoiseRules()
+let noise: NoiseField = makeNoiseField(noiseRules, seed())
+/** The noise rules and seed the current ground was baked with. */
+let noiseKey = ''
 /** The hill the full debug drawing is on (nearest the camera). */
 let inspected: HillShape | null = null
 
-function currentHillsKey(): string {
-  return JSON.stringify([readHillRules(store), Math.round(store.get('seed'))])
+function seed(): number {
+  return Math.round(store.get('seed'))
 }
 
-/** Places the hills for the current settings and bakes them into the ground. */
-function bakeHills(g: Ground): void {
-  hills = placeHills(readHillRules(store), g.size, Math.round(store.get('seed')))
+function readNoiseRules(): NoiseRules {
+  return {
+    height: store.get('noiseHeight'),
+    width: store.get('noiseWidth'),
+    detail: store.get('noiseDetail'),
+    calm: store.get('noiseCalm'),
+  }
+}
+
+function currentHillsKey(): string {
+  return JSON.stringify([readHillRules(store), seed()])
+}
+
+function currentNoiseKey(): string {
+  return JSON.stringify([readNoiseRules(), seed()])
+}
+
+function wholeMap(g: Ground): Area {
+  const half = g.size / 2
+  return { minX: -half, maxX: half, minZ: -half, maxZ: half }
+}
+
+/** Places the hills for the current settings (doesn't bake them). */
+function placeAllHills(g: Ground): void {
+  hills = placeHills(readHillRules(store), g.size, seed())
   hillsKey = currentHillsKey()
-  for (const h of hills) addHill(g, h)
-  hillField.update(hills, store.get('hillSpacing'))
-  inspected = null
-  hillDebug.clear() // redrawn on the nearest hill next frame, if any is left
   rows.get('hillCount')?.setNote(`placed ${hills.length} of ${store.get('hillCount')}`)
 }
 
+/** Bakes noise and hills over the whole map. */
+function bakeAll(g: Ground): void {
+  noiseRules = readNoiseRules()
+  noise = makeNoiseField(noiseRules, seed())
+  noiseKey = currentNoiseKey()
+  bakeArea(g, hills, noise, noiseRules, wholeMap(g))
+  redrawHillDebug(g)
+}
+
+/** The hill lines follow the ground, so they're redrawn after every bake. */
+function redrawHillDebug(g: Ground): void {
+  hillField.update(hills, store.get('hillSpacing'), noiseRules.calm, g.heightAt)
+  inspected = null
+  hillDebug.clear() // redrawn on the nearest hill next frame, if any is left
+}
+
+/** Re-bakes the whole map if a noise setting or the seed changed. */
+function rebakeNoiseIfChanged(): void {
+  if (!ground || currentNoiseKey() === noiseKey) return
+  if (currentHillsKey() !== hillsKey) placeAllHills(ground) // the seed moves the hills too
+  bakeAll(ground)
+  terrain.heightsChanged([wholeMap(ground)])
+}
+
 /**
- * Re-places the hills if any hill setting or the seed changed (at most once
- * a frame). Only the old and new footprints are recalculated and redrawn.
+ * Re-places the hills if any hill setting changed (at most once a frame).
+ * Only the old and new calm areas are recalculated and redrawn.
  */
 function rebakeHillsIfChanged(): void {
   if (!ground || currentHillsKey() === hillsKey) return
-  const old = hills.map(hillBounds)
-  for (const area of old) flattenArea(ground, area)
-  bakeHills(ground)
-  terrain.heightsChanged([...old, ...hills.map(hillBounds)])
+  const areas = hills.map((h) => calmBounds(h, noiseRules.calm))
+  placeAllHills(ground)
+  areas.push(...hills.map((h) => calmBounds(h, noiseRules.calm)))
+  for (const area of areas) bakeArea(ground, hills, noise, noiseRules, area)
+  redrawHillDebug(ground)
+  terrain.heightsChanged(areas)
 }
 
 /** Moves the full debug drawing to the hill nearest the camera. */
@@ -99,7 +148,7 @@ function inspectNearestHill(eye: THREE.Vector3): void {
   }
   if (nearest === inspected) return
   inspected = nearest
-  if (nearest) hillDebug.update(nearest)
+  if (nearest && ground) hillDebug.update(nearest, ground.heightAt)
   else hillDebug.clear()
 }
 
@@ -117,7 +166,8 @@ function rebuildIfChanged(): void {
   built = { mapSize, cellSize }
 
   ground = makeGround(mapSize, asked)
-  bakeHills(ground)
+  placeAllHills(ground)
+  bakeAll(ground)
   terrain.update(ground)
   outline.update(ground.size)
 
@@ -152,7 +202,7 @@ function applyViews(): void {
   terrain.setDebug(store.debug('detailDistance'))
   terrain.setWireframe(store.isOn('wireframe'))
   for (const [part, ids] of HILL_PARTS) hillDebug.setVisible(part, ids.some((id) => store.debug(id)))
-  hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'))
+  hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'), store.debug('noiseCalm'))
 }
 store.onChange(applyViews)
 applyViews()
@@ -190,6 +240,7 @@ const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1) // no huge jump after a stall
   rebuildIfChanged()
+  rebakeNoiseIfChanged()
   rebakeHillsIfChanged()
   fly.update(dt, input, input.isLooking)
   inspectNearestHill(camera.position)

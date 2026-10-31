@@ -1,7 +1,8 @@
 import { randomStream } from './hills'
 
 /** Eight evenly spread slope directions, one picked per grid corner. */
-const GRADIENTS = Array.from({ length: 8 }, (_, i) => [Math.cos((i * Math.PI) / 4), Math.sin((i * Math.PI) / 4)])
+const GX = Float64Array.from({ length: 8 }, (_, i) => Math.cos((i * Math.PI) / 4))
+const GY = Float64Array.from({ length: 8 }, (_, i) => Math.sin((i * Math.PI) / 4))
 
 /**
  * Smooth gradient (Perlin) noise from a seed: rolling values in -1..1 that
@@ -19,9 +20,10 @@ export function makeNoise2D(seed: number): (x: number, y: number) => number {
   for (let i = 0; i < 512; i++) perm[i] = order[i & 255]
 
   const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
+  // Flat number arrays, not nested ones: this runs millions of times per bake.
   const corner = (ix: number, iy: number, fx: number, fy: number) => {
-    const g = GRADIENTS[perm[perm[ix & 255] + (iy & 255)] & 7]
-    return g[0] * fx + g[1] * fy
+    const g = perm[perm[ix & 255] + (iy & 255)] & 7
+    return GX[g] * fx + GY[g] * fy
   }
 
   return (x, y) => {
