@@ -8,7 +8,7 @@ is unclear, Claude asks instead of guessing.
 
 ## Goal
 
-A flat square map you can fly over, with a debug menu on Esc that shows the
+A flat square map you can fly over, with a debug menu on ` that shows the
 map's settings and their debug lines. Later steps shape the ground with
 splines, so the ground is already stored as a grid of heights.
 
