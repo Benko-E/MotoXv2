@@ -50,15 +50,27 @@ export function hillHeight(hill: HillShape, x: number, z: number): number {
   const r = Math.hypot(dx, dz)
   if (r <= hill.top) return hill.height
 
-  const facing = (hill.facing * Math.PI) / 180
-  const towardsD = (dx * Math.sin(facing) - dz * Math.cos(facing)) / r // cos of the angle to D
-  const w = (1 + towardsD) / 2 // 0 straight towards A, 1 straight towards D
+  const w = sideMix(hill, dx, dz, r)
   const mix = (a: number, b: number) => a + (b - a) * w
   const reach = mix(hill.runUp.length, hill.runDown.length)
   if (r >= reach) return 0
 
   const u = 1 - (r - hill.top) / (reach - hill.top)
   return hill.height * profile(u, mix(hill.runUp.foot, hill.runDown.foot), mix(hill.runUp.shoulder, hill.runDown.shoulder))
+}
+
+/** 0 looking from the pole straight towards A, 1 straight towards D. */
+function sideMix(hill: HillShape, dx: number, dz: number, r: number): number {
+  if (r === 0) return 0.5
+  const facing = (hill.facing * Math.PI) / 180
+  const towardsD = (dx * Math.sin(facing) - dz * Math.cos(facing)) / r // cos of the angle to D
+  return (1 + towardsD) / 2
+}
+
+/** How far from the pole the hill meets the ground, in the direction (dx, dz). */
+export function hillReach(hill: HillShape, dx: number, dz: number): number {
+  const w = sideMix(hill, dx, dz, Math.hypot(dx, dz))
+  return hill.runUp.length + (hill.runDown.length - hill.runUp.length) * w
 }
 
 /** The square the hill can reach into. */
@@ -78,7 +90,7 @@ export function joinAreas(a: Area, b: Area): Area {
 }
 
 /** The sample index range covering `area`, clamped to the map. */
-function indexRange(ground: Ground, area: Area) {
+export function indexRange(ground: Ground, area: Area) {
   const { cells, cellSize } = ground
   const half = ground.size / 2
   const toIndex = (v: number) => Math.min(Math.max(v, 0), cells)
