@@ -25,8 +25,11 @@ This is the second, rebuilt version.
   and Calm distance, how far past a hill's foot the small bumps stay
   smoothed out (its debug lines draw a blue ring where the calm ends).
   Hills ride on the big swells. MAP → View has the ground grid.
-- Scale dummy (RIDER → Scale dummy): a bike-and-rider-sized pair of boxes
-  that roams the map on its own, for a sense of scale. F jumps to it.
+- Bike step A, the drop test (BIKE tab): a 180 kg bike + rider on two
+  sprung, damped wheels with real gravity, suspension and tyre grip. No
+  engine yet: ↑ pushes it, ↓ brakes, R drops it where you look. Debug
+  lines show the centre of mass, spring compression and force, the
+  ground's push on each tyre, and the speed.
 
 ## Controls
 
@@ -37,7 +40,9 @@ This is the second, rebuilt version.
 | W A S D | Fly forward, left, back, right |
 | Space / C | Fly up / down |
 | Shift | Fly faster |
-| F | Jump the camera behind the scale dummy |
+| F | Jump the camera behind the bike |
+| R | Drop the bike where you're looking |
+| ↑ / ↓ | Push the bike / brake (until it has an engine) |
 
 The menu can be dragged by its title bar. Each setting row has a checkbox
 for its debug lines, a slider and a number box. Settings and the menu's

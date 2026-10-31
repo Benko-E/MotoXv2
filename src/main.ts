@@ -84,9 +84,11 @@ function dropBikeInView(): void {
   const look = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion)
   const at = new THREE.Vector3()
   let found = false
-  for (let d = 2; d < 3000; d += 1) {
+  const half = ground.size / 2
+  for (let d = 2; d < 8000; d += 1) {
     at.copy(camera.position).addScaledVector(look, d)
-    if (Math.abs(at.x) > ground.size / 2 || Math.abs(at.z) > ground.size / 2) break
+    // The camera may start outside the map: only the part over the map counts.
+    if (Math.abs(at.x) > half || Math.abs(at.z) > half) continue
     if (at.y <= ground.heightAt(at.x, at.z)) {
       found = true
       break
@@ -270,7 +272,9 @@ document.addEventListener('keydown', (e) => {
   if (e.repeat || isTypingTarget(e.target)) return
   if (e.code === 'KeyR') dropBikeInView()
   if (e.code !== 'KeyF') return
-  const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation).setY(0).normalize()
+  const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation).setY(0)
+  if (nose.lengthSq() < 0.01) nose.set(0, 0, -1) // pointing straight up or down
+  nose.normalize()
   const p = bike.position
   fly.lookFrom(
     new THREE.Vector3(p.x - nose.x * 7, p.y + 3, p.z - nose.z * 7),

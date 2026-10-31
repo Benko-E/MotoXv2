@@ -46,6 +46,9 @@ export type WheelState = {
   contactPoint: Vector3
   /** The ground's push on the tyre (load + friction), N. */
   groundForce: Vector3
+  /** Where the tyre is stuck to the ground while it grips (it slides past grip × load). */
+  anchor: Vector3
+  anchored: boolean
 }
 
 const GRAVITY = 9.81
@@ -59,6 +62,13 @@ const BUMP_STOP = { stiffness: 200000, damping: 8000 }
 const ROLLING_RESISTANCE = 0.02
 /** How stiffly a gripping tyre resists sliding, N per m/s (it then caps at grip × load). */
 const TYRE_STIFFNESS = 8000
+/** How hard a gripping tyre pulls back to the spot it's stuck to, N per metre. */
+const STICK_STIFFNESS = 60000
+/**
+ * A wheel leaning further than this from the ground (cosine of 60°) doesn't
+ * touch it: that's a crash, for the body to handle, not the suspension.
+ */
+const MIN_ALONG = 0.5
 /** Temporary upright assist (step D replaces it with steering balance). */
 const UPRIGHT = { stiffness: 4000, damping: 600 }
 /** Spacing for reading the ground's slope. */
@@ -97,6 +107,7 @@ export class Bike {
       w.compression = 0
       w.force = 0
       w.contact = false
+      w.anchored = false
     }
   }
 
@@ -125,13 +136,14 @@ export class Bike {
       // the ground's normal, turned into compression along the suspension.
       const ground = terrain.heightAt(extended.x, extended.z)
       const sink = radius - (extended.y - ground) * normal.y
-      const along = Math.max(up.dot(normal), 0.2)
-      const compression = sink > 0 ? sink / along : 0
+      const along = up.dot(normal)
+      const compression = sink > 0 && along >= MIN_ALONG ? sink / along : 0
 
       if (compression <= 0) {
         wheel.compression = 0
         wheel.force = 0
         wheel.contact = false
+        wheel.anchored = false
         wheel.center.copy(extended)
         wheel.groundForce.set(0, 0, 0)
         continue
@@ -153,7 +165,9 @@ export class Bike {
       const load = normal.clone().multiplyScalar(pressure)
       addForceAt(load, wheel.contactPoint)
 
-      // Tyre: grips sideways, rolls freely (or brakes) along the wheel.
+      // Tyre: sticks to the ground sideways (and along, when braking) like a
+      // stiff spring to the spot it touched down on, until the force needed
+      // passes grip × load; then it slides and sticks again where it is.
       const grip = p.grip * pressure
       const pointVelocity = this.angularVelocity
         .clone()
@@ -161,23 +175,38 @@ export class Bike {
         .add(this.velocity)
       const rolling = forward.clone().addScaledVector(normal, -forward.dot(normal)).normalize()
       const side = rolling.clone().cross(normal)
-      const vRoll = pointVelocity.dot(rolling)
-      const vSide = pointVelocity.dot(side)
-      const sideForce = clamp(-TYRE_STIFFNESS * vSide, grip)
-      const rollForce = input.brake
-        ? clamp(-TYRE_STIFFNESS * vRoll, grip)
-        : -ROLLING_RESISTANCE * pressure * Math.tanh(vRoll / 0.1)
-      const friction = side.multiplyScalar(sideForce).addScaledVector(rolling, rollForce)
+      if (!wheel.anchored) {
+        wheel.anchor.copy(wheel.contactPoint)
+        wheel.anchored = true
+      }
+      const offset = wheel.contactPoint.clone().sub(wheel.anchor)
+      offset.addScaledVector(normal, -offset.dot(normal))
+      const slide = pointVelocity.clone().addScaledVector(normal, -pointVelocity.dot(normal))
+      if (!input.brake) {
+        // Rolling freely: the stuck spot rolls along with the wheel.
+        const rolled = offset.dot(rolling)
+        wheel.anchor.addScaledVector(rolling, rolled)
+        offset.addScaledVector(rolling, -rolled)
+        slide.copy(side).multiplyScalar(pointVelocity.dot(side))
+      }
+      const friction = offset.multiplyScalar(-STICK_STIFFNESS).addScaledVector(slide, -TYRE_STIFFNESS)
+      if (friction.length() > grip) {
+        friction.setLength(grip)
+        wheel.anchor.copy(wheel.contactPoint) // broke loose
+      }
+      if (!input.brake) friction.addScaledVector(rolling, -ROLLING_RESISTANCE * pressure * Math.tanh(pointVelocity.dot(rolling) / 0.1))
       addForceAt(friction, wheel.contactPoint)
       wheel.groundForce.copy(load).add(friction)
     }
 
     if (input.push && (this.front.contact || this.rear.contact)) force.addScaledVector(forward, p.push)
 
-    // Upright assist: twist round the long axis back towards vertical.
+    // Upright assist: twist round the long axis back towards vertical
+    // (only with a wheel on the ground: in the air that's the rider's job).
+    const grounded = this.front.contact || this.rear.contact
     const target = new Vector3(0, 1, 0).addScaledVector(forward, -forward.y).normalize()
     const lean = Math.atan2(up.clone().cross(target).dot(forward), up.dot(target))
-    torque.addScaledVector(forward, UPRIGHT.stiffness * lean - UPRIGHT.damping * this.angularVelocity.dot(forward))
+    if (grounded) torque.addScaledVector(forward, UPRIGHT.stiffness * lean - UPRIGHT.damping * this.angularVelocity.dot(forward))
 
     this.integrate(dt, force, torque)
   }
@@ -221,11 +250,9 @@ function emptyWheel(): WheelState {
     center: new Vector3(),
     contactPoint: new Vector3(),
     groundForce: new Vector3(),
+    anchor: new Vector3(),
+    anchored: false,
   }
-}
-
-function clamp(value: number, limit: number): number {
-  return Math.max(-limit, Math.min(limit, value))
 }
 
 /** The ground's upward-facing normal at (x, z), from the heights around it. */

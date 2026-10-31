@@ -81,4 +81,41 @@ describe('Bike (step A)', () => {
     const nose = new Vector3(0, 0, -1).applyQuaternion(bike.orientation)
     expect(nose.x).toBeCloseTo(1, 5)
   })
+
+  it('the brake holds on a steep 30° slope (tyres stick until they break loose)', () => {
+    const steep: Terrain = { heightAt: (_x, z) => -Math.tan(Math.PI / 6) * z }
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 0.3, steep)
+    run(bike, 3, steep, { push: false, brake: true })
+    const at = bike.position.clone()
+    run(bike, 10, steep, { push: false, brake: true })
+    expect(bike.position.distanceTo(at)).toBeLessThan(0.02)
+  })
+
+  it('parked across a slope it does not slide sideways', () => {
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, Math.PI / 2, 0.2, slope) // facing east, slope falls to the side
+    run(bike, 3, slope)
+    const z = bike.position.z
+    run(bike, 10, slope)
+    expect(Math.abs(bike.position.z - z)).toBeLessThan(0.02)
+  })
+
+  it('in the air nothing turns it upright (that is the rider’s job later)', () => {
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 20, flat)
+    bike.orientation.setFromAxisAngle(new Vector3(0, 0, 1), 1.2) // leaning 70° in the air
+    run(bike, 0.5, flat)
+    expect(bike.angularVelocity.length()).toBeLessThan(1e-6)
+  })
+
+  it('a wheel leaning more than 60° from the ground ignores it', () => {
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 0, flat)
+    bike.orientation.setFromAxisAngle(new Vector3(0, 0, 1), 1.3) // 75° over
+    bike.position.y = 0.3
+    bike.step(STEP, idle, flat)
+    expect(bike.front.contact).toBe(false)
+    expect(bike.rear.contact).toBe(false)
+  })
 })
