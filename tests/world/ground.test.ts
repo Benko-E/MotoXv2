@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeGround, MAX_CELLS } from '../../src/world/ground'
+import { cellSizeUsed, makeGround, MAX_CELLS } from '../../src/world/ground'
 
 describe('makeGround', () => {
   it('fits whole cells exactly when they divide evenly', () => {
@@ -36,6 +36,13 @@ describe('cell budget', () => {
     expect(g.cellSize).toBe(0.9765625)
     expect(g.size).toBe(4000)
     expect(g.limited).toBe(true)
+  })
+
+  it('cellSizeUsed gives the same size for every too-small cell on a big map', () => {
+    expect(cellSizeUsed(4000, 0.25)).toBe(0.9765625)
+    expect(cellSizeUsed(4000, 0.5)).toBe(0.9765625)
+    expect(cellSizeUsed(4000, 2)).toBe(2)
+    expect(cellSizeUsed(1000, 0.25)).toBe(0.25)
   })
 
   it('leaves maps within the budget alone', () => {

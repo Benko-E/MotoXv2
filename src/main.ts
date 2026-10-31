@@ -7,7 +7,7 @@ import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
 import { SettingsStore } from './settings/store'
 import { buildMenu } from './ui/buildMenu'
-import { makeGround } from './world/ground'
+import { cellSizeUsed, makeGround } from './world/ground'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
 const ui = document.querySelector<HTMLDivElement>('#ui')!
@@ -53,11 +53,14 @@ let built = { mapSize: NaN, cellSize: NaN }
  */
 function rebuildIfChanged(): void {
   const mapSize = store.get('mapSize')
-  const cellSize = store.get('cellSize')
+  const asked = store.get('cellSize')
+  // Compare the size actually used: on a limited map, dragging cell size
+  // below the limit would otherwise rebuild the same ground every tick.
+  const cellSize = cellSizeUsed(mapSize, asked)
   if (mapSize === built.mapSize && cellSize === built.cellSize) return
   built = { mapSize, cellSize }
 
-  const ground = makeGround(mapSize, cellSize)
+  const ground = makeGround(mapSize, asked)
   terrain.update(ground)
   outline.update(ground.size)
 

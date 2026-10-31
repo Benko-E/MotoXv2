@@ -28,15 +28,19 @@ export interface Ground {
   heightAt(x: number, z: number): number
 }
 
+/** The cell size a map actually uses: the asked one, or bigger if it wouldn't fit MAX_CELLS. */
+export function cellSizeUsed(mapSize: number, askedCellSize: number): number {
+  return Math.max(askedCellSize, mapSize / MAX_CELLS)
+}
+
 /**
  * Fits whole cells over the asked-for size, rounding up, so the real map can
  * be a little bigger than asked (1000 m with 3 m cells is 334 cells, 1002 m).
  * Cells are made bigger when the map wouldn't fit in MAX_CELLS.
  */
 export function makeGround(mapSize: number, askedCellSize: number): Ground {
-  const smallest = mapSize / MAX_CELLS
-  const limited = askedCellSize < smallest
-  const cellSize = limited ? smallest : askedCellSize
+  const cellSize = cellSizeUsed(mapSize, askedCellSize)
+  const limited = cellSize !== askedCellSize
   // The small allowance stops float noise (115 / 2.3 = 50.00000000000001)
   // from adding a whole extra cell.
   const cells = Math.ceil(mapSize / cellSize - 1e-9)

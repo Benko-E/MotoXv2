@@ -8,9 +8,10 @@ export const SKIRT_TRIANGLES_PER_EDGE_STEP = 2
  * The shape of one chunk of ground at one detail level: every `step`-th grid
  * point of the cells in `xr` × `zr`, at its stored height.
  *
- * A skirt hangs down from all four edges, so where this chunk meets a
- * coarser or finer neighbour no gap can show. Normals come from the
- * heightmap itself, so lighting matches across chunk edges.
+ * A skirt hangs down from all four edges, past the chunk's lowest point, so
+ * where this chunk meets a coarser or finer neighbour no gap can show.
+ * Normals come from the heightmap itself, so lighting matches across chunk
+ * edges.
  */
 export function buildChunkGeometry(
   ground: Ground,
@@ -22,9 +23,22 @@ export function buildChunkGeometry(
   const zs = sampleIndices(zr.start, zr.end, step)
   const nx = xs.length
   const nz = zs.length
-  const skirtDepth = Math.max(1, step * ground.cellSize)
   const half = ground.size / 2
   const { heights, samples, cellSize, cells } = ground
+
+  // A neighbour's edge line (at any detail level) runs somewhere between this
+  // chunk's lowest and highest point, so hanging the skirt down past the
+  // lowest point always closes the gap.
+  let low = Infinity
+  let high = -Infinity
+  for (let iz = zr.start; iz <= zr.end; iz++) {
+    for (let ix = xr.start; ix <= xr.end; ix++) {
+      const v = heights[iz * samples + ix]
+      if (v < low) low = v
+      if (v > high) high = v
+    }
+  }
+  const skirtDepth = Math.max(1, high - low + 1)
 
   const pointCount = nx * nz + 2 * (nx + nz)
   const positions = new Float32Array(pointCount * 3)

@@ -37,3 +37,14 @@ Procedural, controlled by settings like count, spacing and size ranges
 complete hills on a normal map, more on big maps; count is just a setting
 (baking cost is tiny: each hill only touches the cells within its reach).
 Noise may add roughness on top, steered by the hills.
+
+## Notes from the step 2 review (do these with the hills)
+
+- Baking hills changes heights in place: the terrain needs a "heights
+  changed" call (recompute chunk boxes, rebuild every chunk, redo borders and
+  the label height), or a ground version number main.ts checks each frame.
+- Normals at the outer map edge use a clamped neighbour, so the slope there
+  reads at half strength (only visible on the border).
+- Chunk border debug lines draw through hills (depthTest off); may confuse.
+- The cell grid is projected straight down, so it stretches on steep faces.
+- Consider extra detail near jump lips.

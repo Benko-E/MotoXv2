@@ -7,7 +7,11 @@ This is the second, rebuilt version.
 
 ## Where it's at
 
-Step 1: a flat map you can fly over, with a debug menu for its settings.
+- Step 1: a flat map you can fly over, with a debug menu for its settings.
+- Step 2: a cell budget (at most 4,096 cells per side) and level of detail:
+  the ground is drawn in chunks that get coarser with distance. MAP → Detail
+  has the Detail distance (tick it to tint chunks by detail level) and
+  Wireframe.
 
 ## Controls
 

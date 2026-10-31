@@ -35,6 +35,17 @@ describe('buildChunkGeometry', () => {
     expect(pos.getZ(points - 1)).toBe(0)
   })
 
+  it('on a hill, the skirt reaches below the lowest point in the chunk', () => {
+    // A 50 m ridge along the chunk's edge: a coarser neighbour's edge line can
+    // run anywhere between the chunk's lowest and highest point, so the skirt
+    // must hang down past the lowest one or a slit shows through.
+    const hilly = makeGround(128, 1)
+    for (let iz = 0; iz < hilly.samples; iz++) hilly.heights[iz * hilly.samples + 64] = 50
+    const geo = buildChunkGeometry(hilly, x, z, 1)
+    const pos = geo.getAttribute('position')
+    for (let i = 65 * 65; i < pos.count; i++) expect(pos.getY(i)).toBeLessThan(0)
+  })
+
   it('hangs the skirt below the edge', () => {
     const geo = buildChunkGeometry(ground, x, z, 4)
     const pos = geo.getAttribute('position')
