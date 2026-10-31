@@ -53,9 +53,9 @@ describe('buildMenu', () => {
     for (const s of seen) expect(Number.isInteger(s)).toBe(true)
   })
 
-  it('puts the scale dummy on the RIDER page and leaves BIKE empty', () => {
-    expect(tabs.page('RIDER').el.contains(rows.get('dummySpeed')!.el)).toBe(true)
-    expect(tabs.page('BIKE').el.children).toHaveLength(0)
+  it('puts the bike settings on the BIKE page and leaves RIDER empty', () => {
+    expect(tabs.page('BIKE').el.contains(rows.get('frontSpring')!.el)).toBe(true)
+    expect(tabs.page('RIDER').el.children).toHaveLength(0)
   })
 
   it('Copy changes sits left of Reset all and copies only changed settings', async () => {

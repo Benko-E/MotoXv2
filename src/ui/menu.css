@@ -84,7 +84,7 @@
 
 .menu-row {
   display: grid;
-  grid-template-columns: 20px 112px 1fr 64px 16px 26px;
+  grid-template-columns: 20px 112px 1fr 64px 40px 26px;
   align-items: center;
   gap: 6px;
   padding: 3px 0;

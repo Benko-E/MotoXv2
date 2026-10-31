@@ -141,30 +141,6 @@ export const SETTINGS: Setting[] = [
     debugDefault: false,
   },
   {
-    kind: 'toggle',
-    id: 'showDummy',
-    name: 'Show dummy',
-    tab: 'RIDER',
-    section: 'Scale dummy',
-    default: true,
-    hasDebug: false,
-    debugDefault: false,
-  },
-  {
-    kind: 'slider',
-    id: 'dummySpeed',
-    name: 'Speed',
-    tab: 'RIDER',
-    section: 'Scale dummy',
-    min: 0,
-    max: 120,
-    step: 1,
-    default: 110,
-    unit: 'km/h',
-    hasDebug: true,
-    debugDefault: true,
-  },
-  {
     kind: 'slider',
     id: 'seed',
     name: 'Seed',
@@ -189,6 +165,16 @@ export const SETTINGS: Setting[] = [
   ...varied('runDownLength', 'Run-down length', 5, 1000, 5, 70, 'm', 30),
   ...varied('runDownFoot', 'Run-down foot', 1, 6, 0.1, 1.4, '', 20),
   ...varied('runDownShoulder', 'Run-down shoulder', 1, 6, 0.1, 2.5, '', 20),
+  bikeSetting('bikeMass', 'Bike mass', 'Body', 50, 200, 1, 105, 'kg', true),
+  bikeSetting('riderMass', 'Rider mass', 'Body', 40, 150, 1, 75, 'kg', false),
+  bikeSetting('travel', 'Travel', 'Suspension', 0.1, 0.5, 0.01, 0.3, 'm', true),
+  bikeSetting('frontSpring', 'Front spring', 'Suspension', 1, 40, 0.5, 9, 'kN/m', false),
+  bikeSetting('rearSpring', 'Rear spring', 'Suspension', 1, 40, 0.5, 10, 'kN/m', false),
+  bikeSetting('frontDamping', 'Front damping', 'Suspension', 0, 5, 0.05, 1.2, 'kN·s/m', false),
+  bikeSetting('rearDamping', 'Rear damping', 'Suspension', 0, 5, 0.05, 1.2, 'kN·s/m', false),
+  bikeSetting('grip', 'Grip', 'Tyres', 0.1, 2, 0.05, 1, '', true),
+  bikeSetting('pushForce', 'Push (↑ key)', 'Test', 0, 3000, 50, 600, 'N', true),
+  bikeSetting('dropHeight', 'Drop height (R)', 'Test', 0, 20, 0.5, 3, 'm', false),
 ]
 
 /** A slider on the Features → Hill tab, debug lines on by default. */
@@ -219,4 +205,19 @@ function varied(
     hillSetting(id, name, min, max, step, value, unit),
     { ...hillSetting(`${id}Var`, 'Variation', 0, 100, 5, variation, '%'), hasDebug: false, debugDefault: false, indent: true },
   ]
+}
+
+/** A slider on the BIKE tab. */
+function bikeSetting(
+  id: string,
+  name: string,
+  section: string,
+  min: number,
+  max: number,
+  step: number,
+  value: number,
+  unit: string,
+  debug: boolean,
+): SliderSetting {
+  return { kind: 'slider', id, name, tab: 'BIKE', section, min, max, step, default: value, unit, hasDebug: debug, debugDefault: debug }
 }

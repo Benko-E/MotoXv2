@@ -4,7 +4,10 @@ import { Input, isTypingTarget } from './camera/input'
 import { connectMenuKey } from './camera/menuKey'
 import { EdgeOutline } from './render/edgeOutline'
 import { HillDebug, HillFieldDebug, type HillPart } from './render/hillDebug'
-import { ScaleDummy } from './render/scaleDummy'
+import { BikeView } from './render/bikeView'
+import { Bike } from './physics/bike'
+import { readBikeParams } from './physics/bikeSettings'
+import { FixedClock } from './physics/clock'
 import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
 import { SettingsStore } from './settings/store'
@@ -13,7 +16,6 @@ import { cellSizeUsed, type Ground, makeGround } from './world/ground'
 import type { Area, HillShape } from './world/hill'
 import { placeHills } from './world/hills'
 import { readHillRules } from './world/hillSettings'
-import { Roamer } from './world/roamer'
 import { bakeArea, calmBounds, makeNoiseField, type NoiseField, type NoiseRules } from './world/terrain'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -51,15 +53,47 @@ const terrain = new TerrainView(scene)
 const outline = new EdgeOutline(scene)
 const hillDebug = new HillDebug(scene)
 const hillField = new HillFieldDebug(scene)
-const dummy = new ScaleDummy(scene)
-const roamer = new Roamer(7)
+const bike = new Bike(readBikeParams(store))
+const bikeView = new BikeView(scene)
+const physicsClock = new FixedClock(1 / 500)
+/** The map the bike was dropped on; a new map drops it again. */
+let bikeGround: Ground | null = null
 
-/** Drives the scale dummy around the map. */
-function moveDummy(dt: number): void {
-  if (!ground || !store.isOn('showDummy')) return
-  const kmh = store.get('dummySpeed')
-  roamer.update(dt, kmh / 3.6, ground.size)
-  dummy.place(roamer.x, roamer.z, roamer.heading, ground.heightAt)
+/** Runs the bike's physics for this frame's time, then draws it. */
+function moveBike(dt: number): void {
+  if (!ground) return
+  const g = ground
+  if (bikeGround !== g) {
+    bike.drop(0, 0, 0, store.get('dropHeight'), g)
+    bikeGround = g
+  }
+  bike.params = readBikeParams(store)
+  const controls = { push: input.isDown('ArrowUp'), brake: input.isDown('ArrowDown') }
+  physicsClock.advance(dt, (step) => bike.step(step, controls, g))
+  // Fell off the map or blew up: start again in the middle.
+  const half = g.size / 2 + 20
+  if (!Number.isFinite(bike.position.y) || Math.abs(bike.position.x) > half || Math.abs(bike.position.z) > half) {
+    bike.drop(0, 0, 0, store.get('dropHeight'), g)
+  }
+  bikeView.update(bike, dt)
+}
+
+/** Drops the bike where the camera is looking (or the map centre), facing away from the camera. */
+function dropBikeInView(): void {
+  if (!ground) return
+  const look = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion)
+  const at = new THREE.Vector3()
+  let found = false
+  for (let d = 2; d < 3000; d += 1) {
+    at.copy(camera.position).addScaledVector(look, d)
+    if (Math.abs(at.x) > ground.size / 2 || Math.abs(at.z) > ground.size / 2) break
+    if (at.y <= ground.heightAt(at.x, at.z)) {
+      found = true
+      break
+    }
+  }
+  if (!found) at.set(0, 0, 0)
+  bike.drop(at.x, at.z, Math.atan2(look.x, -look.z), store.get('dropHeight'), ground)
 }
 const rows = menu.rows
 
@@ -214,8 +248,12 @@ function applyViews(): void {
   terrain.setDebug(store.debug('detailDistance'))
   terrain.setWireframe(store.isOn('wireframe'))
   for (const [part, ids] of HILL_PARTS) hillDebug.setVisible(part, ids.some((id) => store.debug(id)))
-  dummy.visible = store.isOn('showDummy')
-  dummy.setLabel(store.debug('dummySpeed') ? `bike + rider · 2.1 m · ${store.get('dummySpeed')} km/h` : '')
+  bikeView.setDebug({
+    mass: store.debug('bikeMass'),
+    springs: store.debug('travel'),
+    grip: store.debug('grip'),
+    speed: store.debug('pushForce'),
+  })
   hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'), store.debug('noiseCalm'))
 }
 store.onChange(applyViews)
@@ -227,15 +265,16 @@ const fly = new FlyCamera(camera)
 fly.placeOverCorner(store.get('mapSize'))
 connectMenuKey(menu.window, document)
 
-// F: jump the camera just behind the scale dummy
+// F: jump the camera just behind the bike. R: drop the bike where you look.
 document.addEventListener('keydown', (e) => {
-  if (e.code !== 'KeyF' || e.repeat || isTypingTarget(e.target) || !ground || !store.isOn('showDummy')) return
-  const fx = Math.sin(roamer.heading)
-  const fz = -Math.cos(roamer.heading)
-  const y = ground.heightAt(roamer.x, roamer.z)
+  if (e.repeat || isTypingTarget(e.target)) return
+  if (e.code === 'KeyR') dropBikeInView()
+  if (e.code !== 'KeyF') return
+  const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation).setY(0).normalize()
+  const p = bike.position
   fly.lookFrom(
-    new THREE.Vector3(roamer.x - fx * 7, y + 3.5, roamer.z - fz * 7),
-    new THREE.Vector3(roamer.x + fx * 4, y + 1, roamer.z + fz * 4),
+    new THREE.Vector3(p.x - nose.x * 7, p.y + 3, p.z - nose.z * 7),
+    new THREE.Vector3(p.x + nose.x * 4, p.y + 0.5, p.z + nose.z * 4),
   )
 })
 
@@ -270,7 +309,7 @@ renderer.setAnimationLoop(() => {
   rebakeHillsIfChanged()
   fly.update(dt, input, input.isLooking)
   inspectNearestHill(camera.position)
-  moveDummy(dt)
+  moveBike(dt)
   terrain.updateLod(camera.position)
   renderer.render(scene, camera)
   updateDetailNote(dt)
