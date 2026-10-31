@@ -53,9 +53,14 @@ export function buildChunkGeometry(
     positions[p * 3] = -half + ix * cellSize
     positions[p * 3 + 1] = h(ix, iz) - drop
     positions[p * 3 + 2] = -half + iz * cellSize
-    // Slope from the neighbouring grid points.
-    const sx = h(ix - 1, iz) - h(ix + 1, iz)
-    const sz = h(ix, iz - 1) - h(ix, iz + 1)
+    // Slope from the neighbouring grid points. At the map's edge there is
+    // only one neighbour, so its one-cell difference counts double.
+    const x0 = Math.max(ix - 1, 0)
+    const x1 = Math.min(ix + 1, cells)
+    const z0 = Math.max(iz - 1, 0)
+    const z1 = Math.min(iz + 1, cells)
+    const sx = ((h(x0, iz) - h(x1, iz)) * 2) / (x1 - x0)
+    const sz = ((h(ix, z0) - h(ix, z1)) * 2) / (z1 - z0)
     const len = Math.hypot(sx, 2 * cellSize, sz)
     normals[p * 3] = sx / len
     normals[p * 3 + 1] = (2 * cellSize) / len

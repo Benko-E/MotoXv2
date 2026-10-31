@@ -1,5 +1,6 @@
 import { Box3, BufferGeometry, Color, Group, Mesh, type Scene, type ShaderMaterial, type Sprite, Vector3 } from 'three'
 import type { Ground } from '../world/ground'
+import type { Area } from '../world/hill'
 import { buildChunkGeometry } from './chunkGeometry'
 import { ChunkBorders } from './chunkBorders'
 import { makeGridMaterial, makeSharedGroundUniforms } from './gridMaterial'
@@ -75,7 +76,31 @@ export class TerrainView {
     this.borders.update(ground)
     const cells = ground.cells.toLocaleString('en-US')
     setLabelText(this.label, `${round(ground.cellSize)} m cells · ${cells} × ${cells}`)
-    this.label.position.set(0, ground.heightAt(0, ground.size * 0.4) + 2, ground.size * 0.4)
+    this.placeLabel()
+  }
+
+  private placeLabel(): void {
+    if (!this.ground) return
+    const z = this.ground.size * 0.4 // inside the near edge
+    this.label.position.set(0, this.ground.heightAt(0, z) + 2, z)
+  }
+
+  /**
+   * Call after heights inside `area` changed (e.g. a hill was baked): chunks
+   * there get fresh bounds and are rebuilt on the next updateLod.
+   */
+  heightsChanged(area: Area): void {
+    if (!this.ground) return
+    for (const chunk of this.chunks) {
+      const b = chunk.box
+      if (b.max.x < area.minX || b.min.x > area.maxX || b.max.z < area.minZ || b.min.z > area.maxZ) continue
+      const [low, high] = heightRange(this.ground, chunk.xr, chunk.zr)
+      b.min.y = low
+      b.max.y = high
+      chunk.level = -1
+    }
+    this.borders.update(this.ground)
+    this.placeLabel()
   }
 
   /** Picks each chunk's detail level from its distance to `eye`. */

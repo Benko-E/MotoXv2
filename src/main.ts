@@ -7,7 +7,9 @@ import { TerrainView } from './render/terrainView'
 import { SETTINGS, TABS } from './settings/list'
 import { SettingsStore } from './settings/store'
 import { buildMenu } from './ui/buildMenu'
-import { cellSizeUsed, makeGround } from './world/ground'
+import { cellSizeUsed, type Ground, makeGround } from './world/ground'
+import { bakeHill, type HillShape, hillBounds, joinAreas } from './world/hill'
+import { readHill } from './world/hillSettings'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
 const ui = document.querySelector<HTMLDivElement>('#ui')!
@@ -46,6 +48,22 @@ const rows = menu.rows
 
 /** Size and cell size the current ground was built with. */
 let built = { mapSize: NaN, cellSize: NaN }
+let ground: Ground | null = null
+let hill: HillShape = readHill(store)
+
+/**
+ * Re-bakes the hill if any of its settings changed (at most once a frame).
+ * Only the old and new footprint are recalculated and redrawn.
+ */
+function rebakeHillIfChanged(): void {
+  if (!ground) return
+  const next = readHill(store)
+  if (JSON.stringify(next) === JSON.stringify(hill)) return
+  const area = joinAreas(hillBounds(hill), hillBounds(next))
+  hill = next
+  bakeHill(ground, hill, area)
+  terrain.heightsChanged(area)
+}
 
 /**
  * Rebuilds the ground if map size or cell size changed. Called once per
@@ -60,7 +78,9 @@ function rebuildIfChanged(): void {
   if (mapSize === built.mapSize && cellSize === built.cellSize) return
   built = { mapSize, cellSize }
 
-  const ground = makeGround(mapSize, asked)
+  ground = makeGround(mapSize, asked)
+  hill = readHill(store)
+  bakeHill(ground, hill, hillBounds(hill))
   terrain.update(ground)
   outline.update(ground.size)
 
@@ -114,6 +134,7 @@ const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1) // no huge jump after a stall
   rebuildIfChanged()
+  rebakeHillIfChanged()
   fly.update(dt, input, input.isLooking)
   terrain.updateLod(camera.position)
   renderer.render(scene, camera)

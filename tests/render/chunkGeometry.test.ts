@@ -46,6 +46,16 @@ describe('buildChunkGeometry', () => {
     for (let i = 65 * 65; i < pos.count; i++) expect(pos.getY(i)).toBeLessThan(0)
   })
 
+  it('lights the map edge with the same slope as just inside it', () => {
+    // ground rises 0.1 m per cell along x everywhere; the last chunk touches the map edge
+    const geo = buildChunkGeometry(ground, x, z, 1)
+    const n = geo.getAttribute('normal')
+    const edge = 64 // top row, last point: x index 128, the map's edge
+    const inside = 63
+    expect(n.getX(edge)).toBeCloseTo(n.getX(inside), 5)
+    expect(n.getY(edge)).toBeCloseTo(n.getY(inside), 5)
+  })
+
   it('hangs the skirt below the edge', () => {
     const geo = buildChunkGeometry(ground, x, z, 4)
     const pos = geo.getAttribute('position')
