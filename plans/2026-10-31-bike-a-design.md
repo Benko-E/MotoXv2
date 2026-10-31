@@ -32,9 +32,11 @@ rather than jumping).
 - Mounted on the body 0.74 m ahead of and behind the centre of mass,
   0.1 m below it; the wheel hangs straight down along the body's up axis.
 - Travel 0.30 m (setting). Spring: front 9 kN/m, rear 10 kN/m; damping
-  700 N·s/m each (settings). That gives about a third of the travel as sag
+  1200 N·s/m each (settings). That gives about a third of the travel as sag
   with the rider on.
-- Past full travel a very stiff bump stop takes over.
+- Past full travel a very stiff, damped bump stop takes over.
+- The ground pushes the tyre straight out of its surface; the spring sets
+  how hard (spring force ÷ how aligned the spring is with the ground).
 - Wheel radius: front 0.36 m, rear 0.34 m.
 
 ## Tyre contact (step A version)
