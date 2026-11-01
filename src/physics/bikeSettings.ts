@@ -11,7 +11,8 @@ export function readBikeParams(store: SettingsStore): BikeParams {
   return {
     ...DEFAULT_BIKE,
     barLock: store.get('barLock') * DEG,
-    turnAtSpeed: store.get('turnAtSpeed') / 100,
+    turnAt40: store.get('turnAt40'),
+    turnAt100: store.get('turnAt100'),
     maxLean: store.get('maxLean') * DEG,
     riderControl: store.isOn('riderControl'),
     canCrash: store.isOn('canCrash'),

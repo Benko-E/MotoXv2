@@ -166,7 +166,8 @@ export const SETTINGS: Setting[] = [
   ...varied('runDownFoot', 'Run-down foot', 1, 6, 0.1, 1.4, '', 20),
   ...varied('runDownShoulder', 'Run-down shoulder', 1, 6, 0.1, 2.5, '', 20),
   bikeSetting('barLock', 'Bar lock', 'Steering', 20, 70, 1, 45, '°', true),
-  bikeSetting('turnAtSpeed', 'Turn at speed', 'Steering', 20, 150, 5, 70, '%', false),
+  bikeSetting('turnAt40', 'Tightest turn at 40 km/h', 'Steering', 1, 40, 0.5, 5, 'm', false),
+  bikeSetting('turnAt100', 'Tightest turn at 100 km/h', 'Steering', 2, 150, 1, 18, 'm', false),
   bikeSetting('maxLean', 'Most lean', 'Steering', 10, 60, 1, 35, '°', false),
   {
     kind: 'toggle',

@@ -63,8 +63,9 @@ This is the second, rebuilt version.
   faster, only as far as the tyres can hold the turn, so it doesn't slide
   out. The rider leans as far as the turn needs and holds the bike there,
   so it doesn't fall over by itself, on slopes too. BIKE → Steering has
-  Bar lock (45°), Turn at speed (70 %: how tight it turns at speed, 100 %
-  = right at the tyres' limit) and Most lean.
+  Bar lock (45°), Tightest turn at 40 km/h (5 m) and at 100 km/h (18 m),
+  and Most lean (35°, counted from upright and from the ground, so across
+  a slope it leans less).
 - Debug for feedback: the BIKE tab holds only Steering and Sound (the
   suspension, engine, gears, brakes and tyres are fixed in code and tuned
   on request), and the floating number labels are gone; the speed shows
@@ -72,6 +73,12 @@ This is the second, rebuilt version.
   bars, the fork down to the front wheel, a yellow arrow where the front
   wheel points and a cyan one where A/D ask it to point, both growing the
   further they turn.
+- Carving: holding A or D turns as tight as the Tightest turn settings,
+  at any speed (arcade grip: the tyres hold the turn, the rider holds the
+  lean). Rider control no longer shuts the throttle in a turn (it took
+  the turning for a wheelie). In the air the rider levels the bike, stops
+  it spinning and points it where it's going, so it lands in line; with
+  only the front wheel down he keeps the back in line too.
 
 ## Controls
 

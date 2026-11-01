@@ -11,12 +11,14 @@ describe('readBikeParams', () => {
     expect(readBikeParams(store)).toEqual(DEFAULT_BIKE)
   })
 
-  it('turns the menu degrees and per cent into radians and shares', () => {
+  it('turns the menu degrees into radians; turn sizes stay in metres', () => {
     const store = new SettingsStore(SETTINGS, fakeStorage())
     store.set('barLock', 60)
-    store.set('turnAtSpeed', 120)
+    store.set('turnAt40', 7)
+    store.set('turnAt100', 25)
     expect(readBikeParams(store).barLock).toBeCloseTo(Math.PI / 3, 9)
-    expect(readBikeParams(store).turnAtSpeed).toBeCloseTo(1.2, 9)
+    expect(readBikeParams(store).turnAt40).toBe(7)
+    expect(readBikeParams(store).turnAt100).toBe(25)
   })
 
   it('what the menu does not show stays at the physics default', () => {

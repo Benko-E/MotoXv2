@@ -57,7 +57,7 @@ describe('buildMenu', () => {
     const page = tabs.page('BIKE').el
     const titles = [...page.querySelectorAll('.menu-section-title')].map((t) => t.textContent)
     expect(titles).toEqual(['Steering', 'Sound'])
-    for (const id of ['barLock', 'turnAtSpeed', 'maxLean']) expect(page.contains(rows.get(id)!.el)).toBe(true)
+    for (const id of ['barLock', 'turnAt40', 'turnAt100', 'maxLean']) expect(page.contains(rows.get(id)!.el)).toBe(true)
   })
 
   it('puts the rider settings on RIDER', () => {

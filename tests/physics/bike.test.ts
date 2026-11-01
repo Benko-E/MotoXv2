@@ -91,10 +91,45 @@ describe('Bike (step A)', () => {
     expect(Math.abs(bike.position.z - z)).toBeLessThan(0.02)
   })
 
-  it('in the air nothing turns it upright (that is the rider’s job later)', () => {
+  it('in the air the rider levels it for the landing', () => {
     const bike = new Bike(DEFAULT_BIKE)
     bike.drop(0, 0, 0, 20, flat)
-    bike.orientation.setFromAxisAngle(new Vector3(0, 0, 1), 1.2) // leaning 70° in the air
+    bike.orientation.setFromAxisAngle(new Vector3(0, 0, 1), 0.7) // leaning 40° in the air
+    run(bike, 1, flat)
+    expect(bike.front.contact || bike.rear.contact).toBe(false)
+    expect(Math.abs(bike.lean)).toBeLessThan(0.1)
+  })
+
+  it('in the air the rider turns the nose to where it is going, so it lands straight', () => {
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 20, flat)
+    bike.velocity.set(5, 0, -20) // going a little right of north
+    bike.angularVelocity.set(0, 1.5, 0) // still turning left from the take-off
+    run(bike, 1, flat)
+    expect(bike.front.contact || bike.rear.contact).toBe(false)
+    const nose = new Vector3(0, 0, -1).applyQuaternion(bike.orientation)
+    const off = Math.atan2(nose.x, -nose.z) - Math.atan2(bike.velocity.x, -bike.velocity.z)
+    expect(Math.abs(off) * (180 / Math.PI)).toBeLessThan(3)
+    expect(Math.abs(bike.angularVelocity.y)).toBeLessThan(0.05)
+  })
+
+  it('in the air he stops it pitching on, so a nose-down take-off does not dive into the ground', () => {
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 20, flat)
+    bike.velocity.set(0, 0, -30)
+    bike.angularVelocity.set(-0.6, 0, 0) // nose going down (east is the bike's right)
+    run(bike, 1, flat)
+    expect(bike.front.contact || bike.rear.contact).toBe(false)
+    const nose = new Vector3(0, 0, -1).applyQuaternion(bike.orientation)
+    expect(Math.asin(nose.y) * (180 / Math.PI)).toBeGreaterThan(-15)
+    expect(bike.angularVelocity.length()).toBeLessThan(0.05)
+  })
+
+  it('crashed, nothing turns it in the air (the rider has let go)', () => {
+    const bike = new Bike(DEFAULT_BIKE)
+    bike.drop(0, 0, 0, 20, flat)
+    bike.orientation.setFromAxisAngle(new Vector3(0, 0, 1), 0.7)
+    bike.crashed = true
     run(bike, 0.5, flat)
     expect(bike.angularVelocity.length()).toBeLessThan(1e-6)
   })

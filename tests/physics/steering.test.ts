@@ -46,6 +46,11 @@ function rolling(speed: number, params: BikeParams = DEFAULT_BIKE): Bike {
   return bike
 }
 
+/** The circle it is going round right now, radius in metres (∞ going straight). */
+function circle(bike: Bike): number {
+  return bike.speed / Math.max(Math.abs(bike.angularVelocity.y), 1e-6)
+}
+
 /** Heading in degrees, clockwise from north. */
 function heading(bike: Bike): number {
   const nose = new Vector3(0, 0, -1).applyQuaternion(bike.orientation)
@@ -59,11 +64,12 @@ describe('Bike: direct steering (A/D turn the bars)', () => {
     expect(bike.steer * DEG).toBeCloseTo(45, 0)
   })
 
-  it('at speed A/D still ask for the full bar lock; the bars turn only as far as the tyres hold', () => {
+  it('at speed A/D still ask for the full bar lock; the bars turn only as far as the tightest turn', () => {
     const bike = rolling(15)
     run(bike, 0.5, input({ throttle: 0.3, steer: 1 }))
     expect(bike.barsAsked * DEG).toBeCloseTo(45, 0)
-    expect(bike.steer * DEG).toBeLessThan(5)
+    expect(bike.steer * DEG).toBeGreaterThan(8)
+    expect(bike.steer * DEG).toBeLessThan(20)
   })
 
   it('the bar lock setting sets how far they go', () => {
@@ -94,6 +100,35 @@ describe('Bike: direct steering (A/D turn the bars)', () => {
     expect(bike.lean * DEG).toBeLessThan(-15)
   })
 
+  it('holding D carves the tightest turn: about 5 m round at 40 km/h, 18 m at 100 km/h', () => {
+    for (const [kmh, radius] of [
+      [40, 5],
+      [100, 18],
+    ]) {
+      const bike = rolling(kmh / 3.6)
+      let skid = 0
+      run(bike, 2, input({ throttle: 0.5, steer: 1 }), () => {
+        skid = Math.max(skid, Math.abs(bike.front.slipAngle), Math.abs(bike.rear.slipAngle))
+      })
+      expect(bike.crashed).toBe(false)
+      expect(skid * DEG).toBeLessThan(3) // carving, not sliding
+      // The circle for the speed it has now (it scrubs a little off in the turn).
+      const expected = radius * (bike.speed / (kmh / 3.6)) ** (Math.log(18 / 5) / Math.log(100 / 40))
+      expect(circle(bike)).toBeGreaterThan(expected * 0.8)
+      expect(circle(bike)).toBeLessThan(expected * 1.25)
+    }
+  })
+
+  it('the turn size settings set the circle', () => {
+    const wide = rolling(40 / 3.6, { ...DEFAULT_BIKE, turnAt40: 12 })
+    const tight = rolling(40 / 3.6)
+    // Just holding speed, so both are going round at about 40 km/h.
+    run(wide, 1.5, input({ throttle: 0.15, steer: 1 }))
+    run(tight, 1.5, input({ throttle: 0.15, steer: 1 }))
+    expect(Math.abs(wide.speed / tight.speed - 1)).toBeLessThan(0.15)
+    expect(circle(wide)).toBeGreaterThan(circle(tight) * 1.7)
+  })
+
   it('the faster it goes the less the bars turn, so it never slides out', () => {
     const bars: number[] = []
     for (const speed of [8, 15, 25]) {
@@ -117,6 +152,20 @@ describe('Bike: direct steering (A/D turn the bars)', () => {
     let most = 0
     run(bike, 3, input({ throttle: 0.3, steer: 1 }), () => (most = Math.max(most, Math.abs(bike.lean))))
     expect(most * DEG).toBeLessThan(23)
+  })
+
+  it('carving round and round on a 27° side slope, the most lean counts from the ground: the footpegs never touch', () => {
+    const side: Terrain = { heightAt: (x) => Math.tan(27 / DEG) * x } // rises to the east
+    for (const steer of [1, -1]) {
+      const bike = new Bike(DEFAULT_BIKE)
+      bike.drop(0, 0, 0, 0.05, side)
+      run(bike, 1, input({ brake: 1 }), undefined, side)
+      run(bike, 2, input({ throttle: 1 }), undefined, side)
+      let touched = false
+      run(bike, 6, input({ throttle: 0.4, steer }), () => (touched ||= bike.body.some((b) => b.touching)), side)
+      expect(bike.crashed).toBe(false)
+      expect(touched).toBe(false)
+    }
   })
 
   it('letting go straightens the bars and stands it back up', () => {
@@ -158,12 +207,39 @@ describe('Bike: direct steering (A/D turn the bars)', () => {
     }
   })
 
+  it('carving round at full throttle over rolling hills, launching off crests, it stays up', () => {
+    const noise = makeNoise2D(1967)
+    const hills: Terrain = { heightAt: (x, z) => 16 * noise(x / 100, z / 100) + 0.3 * noise(x / 6, z / 6) }
+    for (const steer of [1, -1]) {
+      const bike = new Bike(DEFAULT_BIKE)
+      bike.drop(0, 0, 0, 0.05, hills)
+      run(bike, 1, input({ brake: 1 }), undefined, hills)
+      run(bike, 4, input({ throttle: 1 }), undefined, hills)
+      run(bike, 15, input({ throttle: 1, steer }), undefined, hills)
+      expect(bike.crashed).toBe(false)
+    }
+  })
+
   it('holding W and D together at speed stays up', () => {
     for (const speed of [12, 20, 30]) {
       const bike = rolling(speed)
       const turned = turn(bike, 4, input({ throttle: 1, steer: 1 }))
       expect(bike.crashed).toBe(false)
       expect(turned).toBeGreaterThan(10)
+    }
+  })
+
+  it('carving at full lock with W held, he keeps the throttle open (turning is not a wheelie)', () => {
+    for (const steer of [1, -1]) {
+      const bike = rolling(10)
+      run(bike, 1, input({ throttle: 1, steer }))
+      const before = bike.speed
+      // (Gear changes can spin the rear for a moment; on average he leaves it open.)
+      let cut = 0
+      run(bike, 2, input({ throttle: 1, steer }), () => (cut += bike.throttleCut * STEP / 2))
+      expect(bike.crashed).toBe(false)
+      expect(cut).toBeLessThan(0.1)
+      expect(bike.speed).toBeGreaterThan(before + 3)
     }
   })
 
@@ -212,19 +288,28 @@ describe('Bike (step D: rider weight, rear brake, body)', () => {
     expect(bike.front.spin).toBeGreaterThan(10)
   })
 
-  it('crashing on bumpy hills: when it rolls back onto its wheels it is not flung about', () => {
+  it('crashed on bumpy hills: when it rolls back onto its wheels it is not flung about', () => {
     // A fallen bike's wheels are ignored past 60° of lean; rolling back, they
     // can land deep in the ground, which must not kick it (this once ran to NaN).
     const bumpy: Terrain = { heightAt: (x, z) => 3 * Math.sin(x / 15) * Math.cos(z / 20) + 0.3 * Math.sin(x * 0.7 + z * 0.9) }
     const bike = new Bike(DEFAULT_BIKE)
     bike.drop(0, 0, 0, 0.05, bumpy)
+    run(bike, 1, input({ brake: 1 }), undefined, bumpy)
+    // Down on its side at 75°, sliding on at 36 km/h and rolling back up.
+    bike.crashed = true
+    bike.orientation.multiply(new Quaternion().setFromAxisAngle(new Vector3(0, 0, -1), 75 / DEG))
+    bike.position.y -= 0.2
+    bike.velocity.set(0, 0, -10)
+    bike.angularVelocity.copy(new Vector3(0, 0, 1).applyQuaternion(bike.orientation).multiplyScalar(5))
     let fastestSpin = 0
-    for (let n = 0; n < 500 * 15; n++) {
-      const t = n * STEP
-      bike.step(STEP, input({ throttle: Math.min(1, t / 0.25), steer: t > 0.5 ? 1 : 0 }), bumpy)
+    let rolledBack = 0
+    for (let n = 0; n < 500 * 4; n++) {
+      const wheelsBefore = bike.front.contact || bike.rear.contact
+      bike.step(STEP, input(), bumpy)
+      if (!wheelsBefore && (bike.front.contact || bike.rear.contact)) rolledBack++
       fastestSpin = Math.max(fastestSpin, bike.angularVelocity.length())
     }
-    expect(bike.crashed).toBe(true)
+    expect(rolledBack).toBeGreaterThan(0)
     expect(fastestSpin).toBeLessThan(20)
     expect(Number.isFinite(bike.position.y)).toBe(true)
   })
