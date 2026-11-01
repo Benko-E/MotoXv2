@@ -9,9 +9,9 @@ describe('buildMenu', () => {
   const store = new SettingsStore(SETTINGS, fakeStorage())
   const { window: menu, rows, tabs } = buildMenu(SETTINGS, TABS, store, fakeStorage())
 
-  it('has the four tabs in order', () => {
+  it('has the five tabs in order', () => {
     const names = [...menu.el.querySelector('.menu-tabbar')!.children].map((b) => b.textContent)
-    expect(names).toEqual(['MAP', 'RIDER', 'BIKE', 'AI'])
+    expect(names).toEqual(['MAP', 'RIDER', 'BIKE', 'CONTROLS', 'AI'])
   })
 
   it('puts View, Terrain, Noise, Detail and Features sections on the MAP page', () => {
@@ -53,9 +53,10 @@ describe('buildMenu', () => {
     for (const s of seen) expect(Number.isInteger(s)).toBe(true)
   })
 
-  it('puts the bike settings on the BIKE page and leaves RIDER empty', () => {
+  it('puts the bike settings on the BIKE page and the rider ones on RIDER', () => {
     expect(tabs.page('BIKE').el.contains(rows.get('frontSpring')!.el)).toBe(true)
-    expect(tabs.page('RIDER').el.children).toHaveLength(0)
+    expect(tabs.page('RIDER').el.contains(rows.get('maxLean')!.el)).toBe(true)
+    expect(tabs.page('RIDER').el.contains(rows.get('canCrash')!.el)).toBe(true)
   })
 
   it('Copy changes sits left of Reset all and copies only changed settings', async () => {
@@ -72,6 +73,30 @@ describe('buildMenu', () => {
     await Promise.resolve()
     expect(JSON.parse(copied[0])).toEqual({ mapSize: 2500 })
     expect(buttons[0].textContent).toBe('Copied 1')
+  })
+
+  it('closing the menu stops a key row waiting for a key', () => {
+    const own = new SettingsStore(SETTINGS, fakeStorage())
+    const built = buildMenu(SETTINGS, TABS, own, fakeStorage())
+    built.window.open()
+    built.rows.get('keyThrottle')!.el.querySelector<HTMLButtonElement>('.menu-key')!.click()
+    built.window.close()
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyJ', bubbles: true, cancelable: true }))
+    expect(own.key('keyThrottle')).toBe('KeyW')
+  })
+
+  it('a key used twice in the same mode gets a note on both rows; free-roam may share with riding', () => {
+    const own = new SettingsStore(SETTINGS, fakeStorage())
+    const built = buildMenu(SETTINGS, TABS, own, fakeStorage())
+    const note = (id: string) => built.rows.get(id)!.el.querySelector<HTMLElement>('.menu-note')!
+    expect(note('keyThrottle').hidden).toBe(true) // W also flies forward: different modes
+    own.setKey('keyThrottle', 'KeyC')
+    expect(note('keyThrottle').hidden).toBe(false)
+    expect(note('keyThrottle').textContent).toContain('Switch camera')
+    expect(note('keyCamera').textContent).toContain('Throttle')
+    own.setKey('keyThrottle', 'KeyW')
+    expect(note('keyThrottle').hidden).toBe(true)
+    expect(note('keyCamera').hidden).toBe(true)
   })
 
   it('has a reset-all button that resets every setting', () => {

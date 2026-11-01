@@ -23,6 +23,12 @@ const ARROW_SCALE = 1 / 1000
 /** Labels are redrawn this often (their text is a picture, so not every frame). */
 const LABEL_INTERVAL = 0.1
 const AXLE = new Vector3(1, 0, 0)
+const STEER_AXIS = new Vector3(0, 1, 0)
+const DEG = 180 / Math.PI
+/** Where the rider box sits on the bike when sitting normally (centre of mass is the origin). */
+const RIDER_SEAT = new Vector3(0, 0.75, 0.15)
+/** Body points: green scrape, blue rider/bars (a crash), red while touching. */
+const POINT_COLOURS = { scrape: '#33dd33', crash: '#4da3ff', touching: '#ff3030' }
 const GEAR_NAMES = ['1st', '2nd', '3rd', '4th', '5th']
 /** Cells in the rpm bar. */
 const BAR_CELLS = 30
@@ -37,7 +43,18 @@ function rpmBar(rpm: number, upShift: number, limit: number): string {
 }
 
 /** Which debug drawings are on (the BIKE tab's checkboxes). */
-export type BikeDebug = { mass: boolean; springs: boolean; grip: boolean; engine: boolean }
+export type BikeDebug = {
+  mass: boolean
+  springs: boolean
+  grip: boolean
+  engine: boolean
+  /** Lean and bars (RIDER → Most lean). */
+  lean: boolean
+  /** Where the rider's weight sits (RIDER → Rider reach). */
+  reach: boolean
+  /** Body contact points (RIDER → Crash lean). */
+  body: boolean
+}
 
 /**
  * Draws the bike as plain boxes and two wheels, plus its debug view:
@@ -55,14 +72,24 @@ export class BikeView {
   private readonly engineLabel: Sprite
   private readonly rpmBar: Sprite
   private readonly speedLabel: Sprite
+  private readonly riderBox: Mesh
+  private readonly barsLine: Line
+  private readonly leanLabel: Sprite
+  private readonly crashLabel: Sprite
+  private readonly weight: Mesh
+  private readonly weightLabel: Sprite
+  private readonly points: Mesh[]
+  /** What the pick-up key is called, for the crash label. */
+  pickUpKey = 'R'
   private sinceLabels = Infinity
-  private debug: BikeDebug = { mass: false, springs: false, grip: false, engine: false }
+  private debug: BikeDebug = { mass: false, springs: false, grip: false, engine: false, lean: false, reach: false, body: false }
 
   constructor(scene: Scene) {
     const frame = new Mesh(new BoxGeometry(0.35, 0.45, 1.5), new MeshStandardMaterial({ color: '#f07a1a' }))
     frame.position.y = 0.1
     const rider = new Mesh(new BoxGeometry(0.45, 0.9, 0.5), new MeshStandardMaterial({ color: '#2a6fdb' }))
-    rider.position.set(0, 0.75, 0.15)
+    rider.position.copy(RIDER_SEAT)
+    this.riderBox = rider
     this.body.add(frame, rider)
     scene.add(this.body)
 
@@ -88,6 +115,7 @@ export class BikeView {
         new LineBasicMaterial({ color: '#33dd33', depthTest: false }),
       )
       line.renderOrder = 10
+      line.frustumCulled = false // its points move every frame; the bounds don't follow
       scene.add(line)
       return line
     })
@@ -103,6 +131,28 @@ export class BikeView {
     this.engineLabel = this.addLabel(scene)
     this.rpmBar = this.addLabel(scene)
     this.speedLabel = this.addLabel(scene)
+
+    this.barsLine = new Line(
+      new BufferGeometry().setFromPoints([new Vector3(), new Vector3()]),
+      new LineBasicMaterial({ color: '#ffe14d', depthTest: false }),
+    )
+    this.barsLine.renderOrder = 10
+    this.barsLine.frustumCulled = false
+    scene.add(this.barsLine)
+    this.leanLabel = this.addLabel(scene)
+    this.crashLabel = this.addLabel(scene)
+    this.weight = new Mesh(new SphereGeometry(0.1), new MeshStandardMaterial({ color: '#ff4dd2', depthTest: false }))
+    this.weight.renderOrder = 10
+    scene.add(this.weight)
+    this.weightLabel = this.addLabel(scene)
+    const pointGeometry = new SphereGeometry(0.05)
+    this.points = Array.from({ length: 10 }, () => {
+      const point = new Mesh(pointGeometry, new MeshStandardMaterial({ depthTest: false }))
+      point.renderOrder = 10
+      scene.add(point)
+      return point
+    })
+    this.setDebug(this.debug)
   }
 
   setDebug(debug: BikeDebug): void {
@@ -115,18 +165,32 @@ export class BikeView {
     this.engineLabel.visible = debug.engine
     this.rpmBar.visible = debug.engine
     this.speedLabel.visible = debug.engine
+    this.barsLine.visible = debug.lean
+    this.leanLabel.visible = debug.lean
+    this.weight.visible = debug.reach
+    this.weightLabel.visible = debug.reach
+    for (const p of this.points) p.visible = debug.body
   }
 
   update(bike: Bike, dt: number): void {
-    this.body.position.copy(bike.position)
+    // The bike sits where the rider's weight puts it: opposite his shift.
+    this.body.position.copy(bike.comShift).negate().applyQuaternion(bike.orientation).add(bike.position)
     this.body.quaternion.copy(bike.orientation)
+    // The rider himself moves by his reach (the whole bike's centre moves by his share of it).
+    const riderShare = bike.params.riderMass / bike.mass
+    this.riderBox.position.copy(bike.comShift).divideScalar(riderShare).add(RIDER_SEAT)
     const up = new Vector3(0, 1, 0).applyQuaternion(bike.orientation)
     const wheels = [bike.front, bike.rear]
 
     wheels.forEach((w, i) => {
       this.wheels[i].position.copy(w.center)
       // Rolling forward (nose is −z) turns the wheel backwards about its axle (+x).
-      this.wheels[i].quaternion.copy(bike.orientation).multiply(new Quaternion().setFromAxisAngle(AXLE, -w.angle))
+      // The front also turns with the bars (+ = right = clockwise from above).
+      const bars = new Quaternion().setFromAxisAngle(STEER_AXIS, i === 0 ? -bike.steer : 0)
+      this.wheels[i].quaternion
+        .copy(bike.orientation)
+        .multiply(bars)
+        .multiply(new Quaternion().setFromAxisAngle(AXLE, -w.angle))
 
       // Suspension bar from the mount down to the wheel, green → red at the stop.
       const mount = w.center.clone().addScaledVector(up, bike.params.travel - Math.min(w.compression, bike.params.travel))
@@ -147,6 +211,21 @@ export class BikeView {
     })
 
     this.com.position.copy(bike.position)
+
+    // Bars: a line from the front wheel the way it points.
+    const pointing = new Vector3(0, 0, -1).applyAxisAngle(STEER_AXIS, -bike.steer).applyQuaternion(bike.orientation)
+    this.barsLine.geometry.setFromPoints([bike.front.center, bike.front.center.clone().addScaledVector(pointing, 1.5)])
+    this.leanLabel.position.copy(bike.position).add(new Vector3(0, 4.2, 0))
+    this.crashLabel.position.copy(bike.position).add(new Vector3(0, 1.8, 0))
+    this.crashLabel.visible = bike.crashed
+    this.body.updateMatrixWorld()
+    this.weight.position.copy(this.riderBox.position).applyMatrix4(this.body.matrixWorld)
+    this.weightLabel.position.copy(this.weight.position).add(new Vector3(0, 0.9, 0))
+    bike.body.forEach((b, i) => {
+      this.points[i].position.copy(b.at)
+      const colour = b.touching ? POINT_COLOURS.touching : b.crashes ? POINT_COLOURS.crash : POINT_COLOURS.scrape
+      ;(this.points[i].material as MeshStandardMaterial).color.set(colour)
+    })
     this.massLabel.position.copy(bike.position).add(new Vector3(0, 2.2, 0))
     this.rpmBar.position.copy(bike.position).add(new Vector3(0, 2.7, 0))
     this.engineLabel.position.copy(bike.position).add(new Vector3(0, 3.2, 0))
@@ -160,18 +239,25 @@ export class BikeView {
       const where = i === 0 ? 'front' : 'rear'
       const text = w.contact ? `${where} ${Math.round(w.compression * 100)} cm · ${Math.round(w.force)} N` : `${where} in the air`
       setLabelText(this.springLabels[i], text)
-      const slip = w.contact ? `${where} slip ${Math.round(w.slip * 100)} %` : `${where} slip –`
+      const slip = w.contact
+        ? `${where} slip ${Math.round(w.slip * 100)} % · sideways ${Math.round(w.slipAngle * DEG)}°`
+        : `${where} slip –`
       setLabelText(this.slipLabels[i], slip, w.sliding ? '#ff5050' : '#ffffff')
     })
     const d = bike.drivetrain
     const throttle = Math.round(bike.throttle * 100)
     let engine = `${GEAR_NAMES[d.gear - 1]} · clutch ${d.state} · ${Math.round(bike.rpm)} rpm · throttle ${throttle} % · ${Math.round(bike.driveTorque)} N·m at wheel`
-    if (bike.wheelieCut > 0) engine += ` · wheelie control −${Math.round(bike.wheelieCut * 100)} %`
+    if (bike.throttleCut > 0) engine += ` · rider eases off −${Math.round(bike.throttleCut * 100)} %`
     if (bike.stoppieCut > 0) engine += ` · stoppie control −${Math.round(bike.stoppieCut * 100)} %`
     setLabelText(this.engineLabel, engine)
     const limit = bike.params.revLimit
     setLabelText(this.rpmBar, rpmBar(bike.rpm, d.upShiftRpm(bike.riderThrottle, limit), limit), bike.rpm > limit - 300 ? '#ff5050' : '#ffffff')
     setLabelText(this.speedLabel, `${(bike.speed * 3.6).toFixed(1)} km/h`)
+    const side = (a: number) => `${Math.abs(Math.round(a * DEG))}° ${a < -0.005 ? 'left' : a > 0.005 ? 'right' : ''}`.trim()
+    setLabelText(this.leanLabel, `lean ${side(bike.lean)} · aiming ${side(bike.targetLean)} · bars ${side(bike.steer)}`)
+    setLabelText(this.crashLabel, `CRASHED · ${this.pickUpKey} to pick up`, '#ff5050')
+    const shift = bike.comShift.z / (bike.params.riderReach * riderShare || 1)
+    setLabelText(this.weightLabel, `rider ${shift > 0.01 ? 'back' : shift < -0.01 ? 'forward' : 'centred'} ${Math.round(Math.abs(bike.comShift.z / riderShare) * 100)} cm`)
   }
 
   private addLabel(scene: Scene): Sprite {

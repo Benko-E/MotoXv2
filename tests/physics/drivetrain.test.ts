@@ -125,4 +125,15 @@ describe('Drivetrain', () => {
     for (let t = 0; t < 0.2; t += DT) e.drive(DT, 1, 1, 4900 / RPM / low.gears[2], low)
     expect(e.gear).toBe(3)
   })
+
+  it('letting go of a pulled clutch (Space) feeds it back in, not all at once', () => {
+    const d = new Drivetrain()
+    const wheel = wheelFor(3000, 2)
+    for (let n = 0; n < 500; n++) d.drive(DT, 1, 0, wheel, p, 1, true, true) // revving, clutch in
+    expect(d.clutch).toBe(0)
+    d.drive(DT, 1, 0, wheel, p, 1, true, false)
+    expect(d.clutch).toBeLessThan(0.1)
+    for (let n = 0; n < 60; n++) d.drive(DT, 1, 0, wheel, p, 1, true, false)
+    expect(d.clutch).toBeGreaterThan(0.9)
+  })
 })

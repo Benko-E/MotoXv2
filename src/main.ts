@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { FlyCamera } from './camera/flyCamera'
+import { FlyCamera, type FlyKeys } from './camera/flyCamera'
+import { FollowCamera } from './camera/followCamera'
 import { Input, isTypingTarget } from './camera/input'
 import { connectMenuKey } from './camera/menuKey'
 import { EdgeOutline } from './render/edgeOutline'
@@ -7,7 +8,7 @@ import { HillDebug, HillFieldDebug, type HillPart } from './render/hillDebug'
 import { BikeView } from './render/bikeView'
 import { Bike } from './physics/bike'
 import { readBikeParams } from './physics/bikeSettings'
-import { ramp } from './physics/controls'
+import { ramp, rampTo } from './physics/controls'
 import { EngineAudio } from './audio/engineAudio'
 import { FixedClock } from './physics/clock'
 import { TerrainView } from './render/terrainView'
@@ -17,6 +18,7 @@ import { buildMenu } from './ui/buildMenu'
 import { cellSizeUsed, type Ground, makeGround } from './world/ground'
 import type { Area, HillShape } from './world/hill'
 import { placeHills } from './world/hills'
+import { keyLabel } from './settings/keys'
 import { readHillRules } from './world/hillSettings'
 import { bakeArea, calmBounds, makeNoiseField, type NoiseField, type NoiseRules } from './world/terrain'
 
@@ -62,8 +64,10 @@ const engineAudio = new EngineAudio()
 // Browsers only allow sound after the player presses something.
 window.addEventListener('keydown', () => engineAudio.start())
 window.addEventListener('pointerdown', () => engineAudio.start())
-/** Throttle and brakes, 0–1, eased in and out by ↑ and ↓. */
-const controls = { throttle: 0, brake: 0 }
+/** What the rider is doing with the controls, eased in and out from the keys. */
+const controls = { throttle: 0, brake: 0, rearBrake: 0, steer: 0, riderShift: 0 }
+/** Follow: the keys ride the bike and the camera trails it. Free: the keys fly the camera. */
+let cameraMode: 'follow' | 'free' = 'follow'
 /** The map the bike was dropped on; a new map drops it again. */
 let bikeGround: Ground | null = null
 
@@ -76,17 +80,23 @@ function moveBike(dt: number): void {
     bikeGround = g
   }
   bike.params = readBikeParams(store)
-  // A twist grip and a lever take a moment to move, they don't snap open.
-  controls.throttle = ramp(controls.throttle, input.isDown('ArrowUp'), dt, 0.25, 0.15)
-  controls.brake = ramp(controls.brake, input.isDown('ArrowDown'), dt, 0.1, 0.1)
+  // A twist grip, levers, bars and a body take a moment to move; they don't snap.
+  // Flying the camera: hands off the bike.
+  const riding = cameraMode === 'follow'
+  const held = (id: string) => riding && input.isDown(store.key(id))
+  const axis = (plus: string, minus: string) => (held(plus) ? 1 : 0) - (held(minus) ? 1 : 0)
+  controls.throttle = ramp(controls.throttle, held('keyThrottle'), dt, 0.25, 0.15)
+  controls.brake = ramp(controls.brake, held('keyBrake'), dt, 0.1, 0.1)
+  controls.rearBrake = ramp(controls.rearBrake, held('keyRearBrake'), dt, 0.05, 0.1)
+  controls.steer = rampTo(controls.steer, axis('keyRight', 'keyLeft'), dt, 0.12)
+  controls.riderShift = rampTo(controls.riderShift, axis('keyRiderForward', 'keyRiderBack'), dt, 0.3)
   physicsClock.advance(dt, (step) => bike.step(step, controls, g))
   // Fell off the map or blew up: start again in the middle.
   const half = g.size / 2 + 20
   if (!Number.isFinite(bike.position.y) || Math.abs(bike.position.x) > half || Math.abs(bike.position.z) > half) {
     bike.drop(0, 0, 0, store.get('dropHeight'), g)
   } else if (bike.position.y < g.heightAt(bike.position.x, bike.position.z) - 3) {
-    // Flipped over and sank (only the wheels touch the ground until crashes
-    // exist): drop it again where it is.
+    // Sank through the ground anyway (a very hard hit): drop it again where it is.
     const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation)
     bike.drop(bike.position.x, bike.position.z, Math.atan2(nose.x, -nose.z), store.get('dropHeight'), g)
   }
@@ -270,7 +280,11 @@ function applyViews(): void {
     springs: store.debug('travel'),
     grip: store.debug('grip'),
     engine: store.debug('peakTorque'),
+    lean: store.debug('maxLean'),
+    reach: store.debug('riderReach'),
+    body: store.debug('crashLean'),
   })
+  bikeView.pickUpKey = keyLabel(store.key('keyPickUp'))
   hillField.setVisible(store.debug('hillCount'), store.debug('hillSpacing'), store.debug('noiseCalm'))
 }
 store.onChange(applyViews)
@@ -280,13 +294,43 @@ applyViews()
 const input = new Input(window, canvas)
 const fly = new FlyCamera(camera)
 fly.placeOverCorner(store.get('mapSize'))
+const follow = new FollowCamera(camera)
+
+function flyKeys(): FlyKeys {
+  return {
+    forward: store.key('keyFlyForward'),
+    back: store.key('keyFlyBack'),
+    left: store.key('keyFlyLeft'),
+    right: store.key('keyFlyRight'),
+    up: store.key('keyFlyUp'),
+    down: store.key('keyFlyDown'),
+    fast: store.key('keyFlyFast'),
+  }
+}
+
+function bikeNose(): THREE.Vector3 {
+  return new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation)
+}
 connectMenuKey(menu.window, document)
 
-// F: jump the camera just behind the bike. R: drop the bike where you look.
+// C: switch camera. R: pick the bike up (following it) or drop it where you
+// look (free-roam). F: free-roam camera just behind the bike.
 document.addEventListener('keydown', (e) => {
   if (e.repeat || isTypingTarget(e.target)) return
-  if (e.code === 'KeyR') dropBikeInView()
-  if (e.code !== 'KeyF') return
+  if (e.code === store.key('keyCamera')) {
+    if (cameraMode === 'follow') {
+      cameraMode = 'free'
+      fly.lookFrom(camera.position.clone(), bike.position.clone()) // carry on from here
+    } else {
+      cameraMode = 'follow'
+      follow.snap(bike.position, bikeNose())
+    }
+  }
+  if (e.code === store.key('keyPickUp')) {
+    if (cameraMode === 'follow' && ground) bike.pickUp(ground)
+    else dropBikeInView()
+  }
+  if (e.code !== store.key('keyBehind') || cameraMode !== 'free') return
   const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation).setY(0)
   if (nose.lengthSq() < 0.01) nose.set(0, 0, -1) // pointing straight up or down
   nose.normalize()
@@ -326,9 +370,11 @@ renderer.setAnimationLoop(() => {
   rebuildIfChanged()
   rebakeNoiseIfChanged()
   rebakeHillsIfChanged()
-  fly.update(dt, input, input.isLooking)
+  if (cameraMode === 'free') fly.update(dt, input, input.isLooking, flyKeys())
+  else input.takeMouse() // looking around waits for free-roam
   inspectNearestHill(camera.position)
   moveBike(dt)
+  if (cameraMode === 'follow') follow.update(dt, bike.position, bikeNose())
   engineAudio.update({
     rpm: bike.rpm,
     load: bike.throttle,

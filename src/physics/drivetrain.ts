@@ -48,6 +48,8 @@ const SHIFT = {
   gap: 0.3,
   /** Throttle blip while shifting down. */
   blip: 0.5,
+  /** After a shift (or Space) the clutch feeds back in over this long, so it doesn't kick the wheel loose. */
+  feed: 0.1,
 }
 
 export type ClutchState = 'locked' | 'slipping' | 'shifting'
@@ -69,6 +71,8 @@ export class Drivetrain {
   private shiftLeft = 0
   private shiftDown = false
   private sinceShift = Infinity
+  /** Time since the rider last had the clutch pulled (Space). */
+  private sinceClutchIn = Infinity
 
   get rpm(): number {
     return this.engineSpin * RPM_PER_RAD_S
@@ -98,12 +102,14 @@ export class Drivetrain {
     this.locked = false
     this.shiftLeft = 0
     this.sinceShift = Infinity
+    this.sinceClutchIn = Infinity
   }
 
   /**
    * `throttle` is what reaches the engine; `wanted` is what the rider asks
-   * for (before wheelie control), which the clutch and gearbox go by.
+   * for (before rider control), which the clutch and gearbox go by.
    * No shifting while the rear wheel is off the ground (`grounded`).
+   * `clutchIn`: the rider has pulled the clutch (Space, to lock the rear).
    */
   drive(
     dt: number,
@@ -113,8 +119,10 @@ export class Drivetrain {
     p: BikeParams,
     wanted = throttle,
     grounded = true,
+    clutchIn = false,
   ): { torque: number; inertia: number } {
     this.sinceShift += dt
+    this.sinceClutchIn = clutchIn ? 0 : this.sinceClutchIn + dt
     this.shiftLeft = Math.max(0, this.shiftLeft - dt)
     if (grounded) this.chooseGear(wanted, brake, wheelSpin, p)
     const ratio = p.gears[this.gear - 1]
@@ -130,7 +138,9 @@ export class Drivetrain {
     this.engineTorque = pull - (1 - open) * p.engineBraking * aboveIdle
 
     const bite = CLUTCH.biteShut + (CLUTCH.biteOpen - CLUTCH.biteShut) * wanted
-    this.clutch = shifting ? 0 : clamp01((rpm - CLUTCH.start) / (bite - CLUTCH.start)) ** 2
+    // After a shift or letting go of a pulled clutch, it feeds back in.
+    const feeding = clamp01(Math.min(this.sinceShift - SHIFT.time, this.sinceClutchIn) / SHIFT.feed)
+    this.clutch = shifting || clutchIn ? 0 : clamp01((rpm - CLUTCH.start) / (bite - CLUTCH.start)) ** 2 * feeding
     const grip = this.clutch * CLUTCH.torque
 
     if (this.locked && (grip <= 0 || Math.abs(this.engineTorque) > grip)) this.locked = false

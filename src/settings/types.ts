@@ -33,5 +33,17 @@ export type ToggleSetting = {
   debugDefault: false
 }
 
+/** A key on the keyboard for one action (a KeyboardEvent.code, e.g. "KeyW"). */
+export type KeySetting = {
+  kind: 'key'
+  id: string
+  name: string
+  tab: string
+  section: string
+  default: string
+  hasDebug: false
+  debugDefault: false
+}
+
 /** Every kind of setting. More kinds join this union as the menu grows. */
-export type Setting = SliderSetting | ToggleSetting
+export type Setting = SliderSetting | ToggleSetting | KeySetting

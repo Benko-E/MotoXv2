@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { FLY, FlyCamera } from '../../src/camera/flyCamera'
+import { DEFAULT_FLY_KEYS, FLY, FlyCamera } from '../../src/camera/flyCamera'
 
 /** Pretends the given keys are held and the mouse moved by (dx, dy). */
 function holding(codes: string[], dx = 0, dy = 0) {
@@ -26,12 +26,21 @@ describe('FlyCamera', () => {
     expect(camera.position.length()).toBeCloseTo(FLY.speed * FLY.fastMultiplier)
   })
 
-  it('Space goes up and C goes down', () => {
+  it('Space goes up and Q goes down (C switches camera now)', () => {
     const { camera, fly } = setup()
     fly.update(1, holding(['Space']), false)
     expect(camera.position.y).toBeCloseTo(FLY.speed)
-    fly.update(2, holding(['KeyC']), false)
+    fly.update(2, holding(['KeyQ']), false)
     expect(camera.position.y).toBeCloseTo(-FLY.speed)
+  })
+
+  it('flies on rebound keys', () => {
+    const { camera, fly } = setup()
+    const keys = { ...DEFAULT_FLY_KEYS, forward: 'KeyI' }
+    fly.update(1, holding(['KeyW']), false, keys)
+    expect(camera.position.length()).toBe(0)
+    fly.update(1, holding(['KeyI']), false, keys)
+    expect(camera.position.length()).toBeCloseTo(FLY.speed)
   })
 
   it('looking down does not make W dive', () => {

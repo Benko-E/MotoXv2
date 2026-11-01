@@ -13,9 +13,22 @@ export const FLY = {
 
 const MAX_PITCH = MathUtils.degToRad(89)
 
+/** Which keys fly (KeyboardEvent codes); the CONTROLS tab can change them. */
+export type FlyKeys = { forward: string; back: string; left: string; right: string; up: string; down: string; fast: string }
+export const DEFAULT_FLY_KEYS: FlyKeys = {
+  forward: 'KeyW',
+  back: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  up: 'Space',
+  down: 'KeyQ',
+  fast: 'ShiftLeft',
+}
+
 /**
  * A free camera. WASD fly level with the ground whichever way you look,
- * Space goes up, C goes down, Shift goes faster, the mouse looks around.
+ * Space goes up, Q goes down, Shift goes faster, the mouse looks around
+ * (keys as set in `FlyKeys`).
  */
 export class FlyCamera {
   private yaw = 0
@@ -26,7 +39,7 @@ export class FlyCamera {
     this.applyRotation()
   }
 
-  update(dt: number, input: Pick<Input, 'isDown' | 'takeMouse'>, mouseLook: boolean): void {
+  update(dt: number, input: Pick<Input, 'isDown' | 'takeMouse'>, mouseLook: boolean, keys = DEFAULT_FLY_KEYS): void {
     const { dx, dy } = input.takeMouse()
     if (mouseLook) {
       this.yaw -= dx * FLY.lookSensitivity
@@ -35,10 +48,10 @@ export class FlyCamera {
     }
 
     const axis = (plus: string, minus: string) => (input.isDown(plus) ? 1 : 0) - (input.isDown(minus) ? 1 : 0)
-    const forward = axis('KeyW', 'KeyS')
-    const right = axis('KeyD', 'KeyA')
-    const up = axis('Space', 'KeyC')
-    const fast = input.isDown('ShiftLeft') || input.isDown('ShiftRight')
+    const forward = axis(keys.forward, keys.back)
+    const right = axis(keys.right, keys.left)
+    const up = axis(keys.up, keys.down)
+    const fast = input.isDown(keys.fast)
     const step = FLY.speed * (fast ? FLY.fastMultiplier : 1) * dt
 
     // Forward is (-sin yaw, 0, -cos yaw); right is (cos yaw, 0, -sin yaw).

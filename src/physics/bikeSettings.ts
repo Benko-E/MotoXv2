@@ -1,7 +1,9 @@
 import type { SettingsStore } from '../settings/store'
 import type { BikeParams } from './bike'
 
-/** The bike as the BIKE tab describes it (springs and dampers are set in kN). */
+const DEG = Math.PI / 180
+
+/** The bike as the BIKE and RIDER tabs describe it (springs and dampers in kN, angles in degrees). */
 export function readBikeParams(store: SettingsStore): BikeParams {
   return {
     bikeMass: store.get('bikeMass'),
@@ -20,5 +22,11 @@ export function readBikeParams(store: SettingsStore): BikeParams {
     frontBrake: store.get('frontBrake'),
     rearBrake: store.get('rearBrake'),
     riderControl: store.isOn('riderControl'),
+    canCrash: store.isOn('canCrash'),
+    maxLean: store.get('maxLean') * DEG,
+    maxSteer: store.get('maxSteer') * DEG,
+    footSpeed: store.get('footSpeed'),
+    riderReach: store.get('riderReach'),
+    crashLean: store.get('crashLean') * DEG,
   }
 }

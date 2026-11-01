@@ -56,7 +56,7 @@ describe('Bike (step A)', () => {
 
   it('on a slope it rolls downhill and speeds up without the brake', () => {
     const bike = new Bike(DEFAULT_BIKE)
-    bike.drop(0, 0, 0, 0.2, slope)
+    bike.drop(0, 0, Math.PI, 0.2, slope) // facing downhill (rolling backwards he'd brake)
     run(bike, 2, slope)
     const z = bike.position.z
     const speed = bike.velocity.length()
@@ -231,6 +231,6 @@ describe('Bike (step C: gears and rider stand-in)', () => {
     bike.drop(0, 0, 0, 1, climb) // from higher up: at 0.05 m the front starts in the slope
     run(bike, 3, climb, braking)
     bike.step(1 / 500, full, climb)
-    expect(bike.wheelieCut).toBe(0)
+    expect(bike.throttleCut).toBe(0)
   })
 })

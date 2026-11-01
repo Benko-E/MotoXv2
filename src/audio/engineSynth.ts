@@ -1,7 +1,7 @@
 /** What the engine is doing, as the sound needs it. */
 export type EngineSound = {
   rpm: number
-  /** How far the throttle is open, 0–1 (after wheelie control). */
+  /** How far the throttle is open, 0–1 (after rider control). */
   load: number
   /** Ignition cut (an up-shift): no bangs. */
   cut: boolean

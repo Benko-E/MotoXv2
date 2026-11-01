@@ -1,7 +1,7 @@
-import type { Setting, SliderSetting } from './types'
+import type { KeySetting, Setting, SliderSetting } from './types'
 
 /** The menu's top tabs, left to right. */
-export const TABS: readonly string[] = ['MAP', 'RIDER', 'BIKE', 'AI']
+export const TABS: readonly string[] = ['MAP', 'RIDER', 'BIKE', 'CONTROLS', 'AI']
 
 /**
  * Every setting in the game, described once. The menu builds its rows from
@@ -195,17 +195,49 @@ export const SETTINGS: Setting[] = [
     debugDefault: false,
   },
   bikeSetting('soundVolume', 'Volume', 'Sound', 0, 100, 1, 60, '%', false),
+  riderSetting('maxLean', 'Most lean', 'Riding', 10, 60, 1, 35, '°', true),
+  riderSetting('maxSteer', 'Most bar angle', 'Riding', 10, 45, 1, 35, '°', false),
+  riderSetting('footSpeed', 'Foot-down speed', 'Riding', 0.5, 6, 0.1, 2.5, 'm/s', false),
+  riderSetting('riderReach', 'Rider reach (↑/↓)', 'Riding', 0, 0.6, 0.01, 0.3, 'm', true),
+  {
+    kind: 'toggle',
+    id: 'canCrash',
+    name: 'Can crash',
+    tab: 'RIDER',
+    section: 'Crashing',
+    default: true,
+    hasDebug: false,
+    debugDefault: false,
+  },
+  riderSetting('crashLean', 'Crash lean', 'Crashing', 50, 89, 1, 70, '°', true),
   {
     kind: 'toggle',
     id: 'riderControl',
-    name: 'Wheelie & stoppie control',
-    tab: 'BIKE',
-    section: 'Rider (temporary)',
+    name: 'Rider throttle & brake control',
+    tab: 'RIDER',
+    section: 'Assists (temporary)',
     default: true,
     hasDebug: false,
     debugDefault: false,
   },
   bikeSetting('dropHeight', 'Drop height (R)', 'Test', 0, 20, 0.5, 3, 'm', false),
+  keySetting('keyThrottle', 'Throttle', 'Riding', 'KeyW'),
+  keySetting('keyBrake', 'Brakes', 'Riding', 'KeyS'),
+  keySetting('keyLeft', 'Turn left', 'Riding', 'KeyA'),
+  keySetting('keyRight', 'Turn right', 'Riding', 'KeyD'),
+  keySetting('keyRearBrake', 'Rear brake (slide)', 'Riding', 'Space'),
+  keySetting('keyRiderBack', 'Rider back', 'Riding', 'ArrowDown'),
+  keySetting('keyRiderForward', 'Rider forward', 'Riding', 'ArrowUp'),
+  keySetting('keyPickUp', 'Pick up / drop bike', 'Riding', 'KeyR'),
+  keySetting('keyCamera', 'Switch camera', 'Camera', 'KeyC'),
+  keySetting('keyBehind', 'Camera behind bike', 'Camera', 'KeyF'),
+  keySetting('keyFlyForward', 'Forward', 'Free-roam', 'KeyW'),
+  keySetting('keyFlyBack', 'Back', 'Free-roam', 'KeyS'),
+  keySetting('keyFlyLeft', 'Left', 'Free-roam', 'KeyA'),
+  keySetting('keyFlyRight', 'Right', 'Free-roam', 'KeyD'),
+  keySetting('keyFlyUp', 'Up', 'Free-roam', 'Space'),
+  keySetting('keyFlyDown', 'Down', 'Free-roam', 'KeyQ'),
+  keySetting('keyFlyFast', 'Faster', 'Free-roam', 'ShiftLeft'),
 ]
 
 /** A slider on the Features → Hill tab, debug lines on by default. */
@@ -251,4 +283,24 @@ function bikeSetting(
   debug: boolean,
 ): SliderSetting {
   return { kind: 'slider', id, name, tab: 'BIKE', section, min, max, step, default: value, unit, hasDebug: debug, debugDefault: debug }
+}
+
+/** A slider on the RIDER tab. */
+function riderSetting(
+  id: string,
+  name: string,
+  section: string,
+  min: number,
+  max: number,
+  step: number,
+  value: number,
+  unit: string,
+  debug: boolean,
+): SliderSetting {
+  return { ...bikeSetting(id, name, section, min, max, step, value, unit, debug), tab: 'RIDER' }
+}
+
+/** A rebindable key on the CONTROLS tab. */
+function keySetting(id: string, name: string, section: string, code: string): KeySetting {
+  return { kind: 'key', id, name, tab: 'CONTROLS', section, default: code, hasDebug: false, debugDefault: false }
 }

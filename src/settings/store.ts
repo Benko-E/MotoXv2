@@ -1,6 +1,6 @@
-import type { Setting, SliderSetting, ToggleSetting } from './types'
+import type { KeySetting, Setting, SliderSetting, ToggleSetting } from './types'
 
-type Value = number | boolean
+type Value = number | boolean | string
 type Saved = { values: Record<string, Value>; debug: Record<string, boolean> }
 
 /**
@@ -16,7 +16,7 @@ export class SettingsStore {
   constructor(
     list: Setting[],
     private readonly storage: Storage | null,
-    private readonly key = 'motox.settings',
+    private readonly storageKey = 'motox.settings',
   ) {
     for (const s of list) {
       this.byId.set(s.id, s)
@@ -48,6 +48,18 @@ export class SettingsStore {
   setOn(id: string, on: boolean): void {
     this.toggle(id)
     this.values.set(id, on)
+    this.changed(id)
+  }
+
+  /** The key bound to an action (a KeyboardEvent.code). */
+  key(id: string): string {
+    this.keySetting(id)
+    return this.values.get(id) as string
+  }
+
+  setKey(id: string, code: string): void {
+    this.keySetting(id)
+    this.values.set(id, code)
     this.changed(id)
   }
 
@@ -107,6 +119,12 @@ export class SettingsStore {
     return s
   }
 
+  private keySetting(id: string): KeySetting {
+    const s = this.setting(id)
+    if (s.kind !== 'key') throw new Error(`"${id}" is not a key`)
+    return s
+  }
+
   private changed(id: string): void {
     this.save()
     for (const fn of this.listeners) fn(id)
@@ -115,7 +133,7 @@ export class SettingsStore {
   private load(): void {
     let saved: Partial<Saved>
     try {
-      saved = JSON.parse(this.storage?.getItem(this.key) ?? '{}')
+      saved = JSON.parse(this.storage?.getItem(this.storageKey) ?? '{}')
     } catch {
       return // broken data: keep the defaults
     }
@@ -125,6 +143,7 @@ export class SettingsStore {
         this.values.set(id, clamp(s, v))
       }
       if (s.kind === 'toggle' && typeof v === 'boolean') this.values.set(id, v)
+      if (s.kind === 'key' && typeof v === 'string' && v !== '') this.values.set(id, v)
       const d = saved?.debug?.[id]
       if (typeof d === 'boolean') this.debugs.set(id, d)
     }
@@ -136,7 +155,7 @@ export class SettingsStore {
       debug: Object.fromEntries(this.debugs),
     }
     try {
-      this.storage?.setItem(this.key, JSON.stringify(saved))
+      this.storage?.setItem(this.storageKey, JSON.stringify(saved))
     } catch {
       // storage full or blocked: settings still work for this visit
     }

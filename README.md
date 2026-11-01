@@ -44,6 +44,21 @@ This is the second, rebuilt version.
   stoppie control eases the throttle and front brake so the bike doesn't
   loop over until the rider can lean (step E). Debug shows the gear, the
   clutch and an rpm bar with the shift point.
+- Bike step D, steering and crashing: A/D ask for a turn and a virtual
+  rider steers the bars to lean the bike into it (countersteering, like a
+  real bike). Below walking pace the bars just follow A/D and he puts a
+  foot down. Space stamps on the rear brake and pulls the clutch, so the
+  rear locks for a powerslide. ↓ / ↑ move the rider back (wheelies) or
+  forward onto the bars. The bike can fall over: a rider or handlebar
+  point touching the ground, or leaning past the crash lean, is a crash,
+  and R picks it up (RIDER → Can crash turns crashing off). The camera
+  now follows the bike; C switches to free-roam. RIDER → Assists has the
+  temporary rider control: he eases the throttle and brakes to keep the
+  wheels from looping, spinning or sliding out, sits forward in turns and
+  holds the brakes rather than roll backwards. Debug shows lean, aimed
+  lean and bars, where the rider's weight is, the body's contact points
+  and each tyre's sideways slip. Every key can be changed on the
+  CONTROLS tab.
 
 ## Controls
 
@@ -51,12 +66,16 @@ This is the second, rebuilt version.
 |---|---|
 | ` (left of 1) | Show or hide the debug menu |
 | Hold right mouse + drag | Look around (menu open or closed) |
-| W A S D | Fly forward, left, back, right |
-| Space / C | Fly up / down |
-| Shift | Fly faster |
-| F | Jump the camera behind the bike |
-| R | Drop the bike where you're looking |
-| ↑ / ↓ | Throttle / brakes |
+| W / S | Throttle / both brakes |
+| A / D | Turn left / right |
+| Space | Rear brake (locks the rear: powerslide) |
+| ↓ / ↑ | Rider back / forward |
+| C | Switch camera: follow the bike or free-roam |
+| R | Pick the bike up (follow) or drop it where you look (free-roam) |
+| F | Free-roam: jump the camera behind the bike |
+| W A S D, Space / Q, Shift | Free-roam: fly, up / down, faster |
+
+Every key can be changed on the CONTROLS tab of the menu.
 
 The menu can be dragged by its title bar. Each setting row has a checkbox
 for its debug lines, a slider and a number box. Settings and the menu's
