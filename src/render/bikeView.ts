@@ -15,7 +15,7 @@ import {
   type Sprite,
   Vector3,
 } from 'three'
-import type { Bike, WheelState } from '../physics/bike'
+import { barLimit, type Bike, type WheelState } from '../physics/bike'
 import { makeLabel, setLabelText } from './label'
 
 /** Debug arrows: metres of arrow per newton. */
@@ -48,7 +48,9 @@ export type BikeDebug = {
   springs: boolean
   grip: boolean
   engine: boolean
-  /** Lean and bars (RIDER → Most lean). */
+  /** Bars, and how far they may turn at this speed (BIKE → Bar lock, Turn at speed). */
+  steering: boolean
+  /** Lean, and the lean the rider aims for (BIKE → Most lean). */
   lean: boolean
   /** Where the rider's weight sits (RIDER → Rider reach). */
   reach: boolean
@@ -74,6 +76,9 @@ export class BikeView {
   private readonly speedLabel: Sprite
   private readonly riderBox: Mesh
   private readonly barsLine: Line
+  /** How far the bars may turn each way at this speed. */
+  private readonly limitLines: Line[]
+  private readonly barsLabel: Sprite
   private readonly leanLabel: Sprite
   private readonly crashLabel: Sprite
   private readonly weight: Mesh
@@ -82,7 +87,16 @@ export class BikeView {
   /** What the pick-up key is called, for the crash label. */
   pickUpKey = 'R'
   private sinceLabels = Infinity
-  private debug: BikeDebug = { mass: false, springs: false, grip: false, engine: false, lean: false, reach: false, body: false }
+  private debug: BikeDebug = {
+    mass: false,
+    springs: false,
+    grip: false,
+    engine: false,
+    steering: false,
+    lean: false,
+    reach: false,
+    body: false,
+  }
 
   constructor(scene: Scene) {
     const frame = new Mesh(new BoxGeometry(0.35, 0.45, 1.5), new MeshStandardMaterial({ color: '#f07a1a' }))
@@ -139,6 +153,17 @@ export class BikeView {
     this.barsLine.renderOrder = 10
     this.barsLine.frustumCulled = false
     scene.add(this.barsLine)
+    this.limitLines = [0, 1].map(() => {
+      const line = new Line(
+        new BufferGeometry().setFromPoints([new Vector3(), new Vector3()]),
+        new LineBasicMaterial({ color: '#8a7a2a', depthTest: false }),
+      )
+      line.renderOrder = 10
+      line.frustumCulled = false
+      scene.add(line)
+      return line
+    })
+    this.barsLabel = this.addLabel(scene)
     this.leanLabel = this.addLabel(scene)
     this.crashLabel = this.addLabel(scene)
     this.weight = new Mesh(new SphereGeometry(0.1), new MeshStandardMaterial({ color: '#ff4dd2', depthTest: false }))
@@ -165,7 +190,9 @@ export class BikeView {
     this.engineLabel.visible = debug.engine
     this.rpmBar.visible = debug.engine
     this.speedLabel.visible = debug.engine
-    this.barsLine.visible = debug.lean
+    this.barsLine.visible = debug.steering
+    for (const l of this.limitLines) l.visible = debug.steering
+    this.barsLabel.visible = debug.steering
     this.leanLabel.visible = debug.lean
     this.weight.visible = debug.reach
     this.weightLabel.visible = debug.reach
@@ -212,9 +239,16 @@ export class BikeView {
 
     this.com.position.copy(bike.position)
 
-    // Bars: a line from the front wheel the way it points.
-    const pointing = new Vector3(0, 0, -1).applyAxisAngle(STEER_AXIS, -bike.steer).applyQuaternion(bike.orientation)
-    this.barsLine.geometry.setFromPoints([bike.front.center, bike.front.center.clone().addScaledVector(pointing, 1.5)])
+    // Bars: a line from the front wheel the way it points, and dim ones
+    // as far as they may turn each way at this speed.
+    const pointing = (steer: number) => new Vector3(0, 0, -1).applyAxisAngle(STEER_AXIS, -steer).applyQuaternion(bike.orientation)
+    this.barsLine.geometry.setFromPoints([bike.front.center, bike.front.center.clone().addScaledVector(pointing(bike.steer), 1.5)])
+    const most = barLimit(bike.speed, bike.params)
+    this.limitLines.forEach((line, i) => {
+      const end = bike.front.center.clone().addScaledVector(pointing(i === 0 ? -most : most), 1.2)
+      line.geometry.setFromPoints([bike.front.center, end])
+    })
+    this.barsLabel.position.copy(bike.position).add(new Vector3(0, 4.7, 0))
     this.leanLabel.position.copy(bike.position).add(new Vector3(0, 4.2, 0))
     this.crashLabel.position.copy(bike.position).add(new Vector3(0, 1.8, 0))
     this.crashLabel.visible = bike.crashed
@@ -254,7 +288,9 @@ export class BikeView {
     setLabelText(this.rpmBar, rpmBar(bike.rpm, d.upShiftRpm(bike.riderThrottle, limit), limit), bike.rpm > limit - 300 ? '#ff5050' : '#ffffff')
     setLabelText(this.speedLabel, `${(bike.speed * 3.6).toFixed(1)} km/h`)
     const side = (a: number) => `${Math.abs(Math.round(a * DEG))}° ${a < -0.005 ? 'left' : a > 0.005 ? 'right' : ''}`.trim()
-    setLabelText(this.leanLabel, `lean ${side(bike.lean)} · aiming ${side(bike.targetLean)} · bars ${side(bike.steer)}`)
+    setLabelText(this.leanLabel, `lean ${side(bike.lean)} · aiming ${side(bike.targetLean)} · most ${Math.round(bike.params.maxLean * DEG)}°`)
+    const lock = Math.round(bike.params.barLock * DEG)
+    setLabelText(this.barsLabel, `bars ${side(bike.steer)} · may turn ${Math.round(most * DEG)}° at this speed (lock ${lock}°)`)
     setLabelText(this.crashLabel, `CRASHED · ${this.pickUpKey} to pick up`, '#ff5050')
     const shift = bike.comShift.z / (bike.params.riderReach * riderShare || 1)
     setLabelText(this.weightLabel, `rider ${shift > 0.01 ? 'back' : shift < -0.01 ? 'forward' : 'centred'} ${Math.round(Math.abs(bike.comShift.z / riderShare) * 100)} cm`)

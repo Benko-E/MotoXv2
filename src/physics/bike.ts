@@ -1,6 +1,5 @@
 import { Quaternion, Vector3 } from 'three'
 import { Drivetrain } from './drivetrain'
-import { steerBars } from './rider'
 
 /** Everything about the bike you can tune. Forces in N, lengths in m. */
 export type BikeParams = {
@@ -34,14 +33,14 @@ export type BikeParams = {
    * gets high, and the front brake off as the rear lifts (a stoppie).
    */
   riderControl: boolean
-  /** The bike can fall over: off, an invisible hand stops the lean at `maxLean`. */
+  /** The bike can fall over (off: only upside down still counts as down). */
   canCrash: boolean
-  /** Most lean the rider aims for, radians. */
+  /** Most lean, radians: the rider leans into a turn as far as it needs, up to this. */
   maxLean: number
-  /** Most bar angle, radians. */
-  maxSteer: number
-  /** Below this speed (m/s) the bars follow A/D directly and the rider dabs a foot. */
-  footSpeed: number
+  /** How far A/D turn the bars, radians (slow; faster they turn less, see `turnAtSpeed`). */
+  barLock: number
+  /** How tight it turns at speed: 1 = as tight as the tyres hold, less leaves grip spare. */
+  turnAtSpeed: number
   /** How far the rider moves back (↓) on the bike, m (forward is 80 % of it). */
   riderReach: number
   /** Leaning further than this is a crash, radians. */
@@ -67,8 +66,8 @@ export const DEFAULT_BIKE: BikeParams = {
   riderControl: true,
   canCrash: true,
   maxLean: (35 * Math.PI) / 180,
-  maxSteer: (35 * Math.PI) / 180,
-  footSpeed: 2.5,
+  barLock: (45 * Math.PI) / 180,
+  turnAtSpeed: 0.7,
   riderReach: 0.3,
   crashLean: (70 * Math.PI) / 180,
 }
@@ -129,6 +128,8 @@ const GRAVITY = 9.81
 const SHAPE = { w: 0.8, h: 1.2, l: 2.1 }
 /** Suspension mounts, relative to the centre of mass (nose is −z). */
 const MOUNTS = { front: new Vector3(0, -0.1, -0.74), rear: new Vector3(0, -0.1, 0.74) }
+/** Front axle to rear axle, m. */
+const WHEELBASE = MOUNTS.rear.z - MOUNTS.front.z
 const RADIUS = { front: 0.36, rear: 0.34 }
 /** Radius of the tyre's round crown (across the tread), m. */
 const TYRE_CROWN = 0.07
@@ -171,10 +172,16 @@ const ROLL_BACK = 0.1
 const COM_SHIFT_SPEED = 0.5
 /** How far forward (share of his reach) he sits while turning. */
 const TURN_FORWARD = 0.6
-/** The rider's foot, at walking pace: twist back towards upright. */
-const FOOT = { stiffness: 4000, damping: 600 }
-/** With Can crash off: the invisible hand that stops the lean at the most-lean setting. */
-const HAND = { stiffness: 30000, damping: 3000 }
+/**
+ * The rider's balance: he twists the bike to the lean its turn needs, N·m
+ * per radian off and per rad/s of lean speed, at most `most` N·m.
+ */
+const BALANCE = { stiffness: 20000, damping: 1500, most: 4000 }
+/**
+ * How long he takes to swing the bars as far as they may go, s. Faster, where
+ * they may go less far, he moves them slower: a flick at speed slides the front.
+ */
+const STEER_TIME = 0.25
 /** How fast the bars straighten when the rider has let go, rad/s. */
 const LET_GO_RATE = 2
 /** How fast he straightens them himself with the front wheel in the air, rad/s. */
@@ -315,20 +322,22 @@ export class Bike {
 
     // The rider: off the bike once it's crashed (he's let go of everything).
     const riding = !this.crashed
-    if (riding) {
-      const bars = steerBars(
-        { speed: along, lean: this.lean, leanSpeed, input: clampSigned(input.steer ?? 0), steer: this.steer, targetLean: this.targetLean },
-        p,
-        dt,
-      )
-      this.targetLean = bars.targetLean
-      // Front wheel off the ground (wheelie, jump): the bars do nothing, so
-      // he straightens them for the landing.
-      this.steer = this.front.contact ? bars.steer : straighten(this.steer, STEER_RATE_AIR * dt)
-    } else {
-      this.steer = straighten(this.steer, LET_GO_RATE * dt)
-      this.targetLean = 0
+    if (!riding) this.steer = straighten(this.steer, LET_GO_RATE * dt)
+    // Front wheel off the ground (wheelie, jump): the bars do nothing, so
+    // he straightens them for the landing.
+    else if (!this.front.contact) this.steer = straighten(this.steer, STEER_RATE_AIR * dt)
+    else {
+      // A/D turn the bars: all the way slow, faster only as far as the tyres hold.
+      const most = barLimit(this.speed, p)
+      const wanted = clampSigned(input.steer ?? 0) * most
+      const rate = (Math.max(most, Math.abs(this.steer)) / STEER_TIME) * dt
+      this.steer += Math.max(-rate, Math.min(rate, wanted - this.steer))
     }
+    // He leans as far as the bars' turn pulls sideways against gravity, up to
+    // the most lean. (By the bars, not by how it actually turns: that would
+    // feed on itself, a lean that turns it asking for more lean.)
+    const pull = (along * Math.abs(along) * Math.tan(this.steer)) / WHEELBASE
+    this.targetLean = riding ? Math.max(-p.maxLean, Math.min(p.maxLean, Math.atan(pull / GRAVITY))) : 0
     // His weight: back (↓) or forward onto the bars (↑), as a share of the whole bike.
     // Turning, he sits forward to keep weight on the front (unless ↑/↓ say otherwise).
     const turnForward = TURN_FORWARD * Math.abs(clampSigned(input.steer ?? 0))
@@ -550,14 +559,21 @@ export class Bike {
     // Upside down is down, switch or no switch (the invisible hand can't tell which way to push).
     if (riding && up.y < 0) this.crashed = true
 
-    // At walking pace the rider puts a foot down to stay upright.
-    const grounded = this.front.contact || this.rear.contact
-    const footDown = this.crashed || !grounded ? 0 : clamp01(1 - Math.abs(along) / (2 * p.footSpeed))
-    if (footDown > 0) torque.addScaledVector(forward, -footDown * (FOOT.stiffness * this.lean + FOOT.damping * leanSpeed))
-    // Can crash off: the invisible hand stops the lean at the most-lean setting.
-    const over = Math.abs(this.lean) - p.maxLean
-    if (!p.canCrash && !this.crashed && over > 0) {
-      torque.addScaledVector(forward, -Math.sign(this.lean) * HAND.stiffness * over - HAND.damping * leanSpeed)
+    // On the ground the rider holds the bike at the lean its turn needs, so it
+    // doesn't fall over by itself (in the air there's nothing to push against).
+    const touching = [this.front, this.rear].filter((w) => w.contact)
+    if (!this.crashed && touching.length > 0) {
+      const twist = BALANCE.stiffness * (this.lean - this.targetLean) + BALANCE.damping * leanSpeed
+      // He rolls it about where the tyres touch the ground, not about its
+      // middle, so his balancing doesn't shove the tyres sideways.
+      const pivot = touching.reduce((sum, w) => sum.add(w.contactPoint), new Vector3()).divideScalar(touching.length)
+      const arm = this.position.clone().sub(pivot)
+      arm.addScaledVector(forward, -arm.dot(forward))
+      const rollInertia = (this.mass / 12) * (SHAPE.w ** 2 + SHAPE.h ** 2)
+      const twistMost = Math.max(-BALANCE.most, Math.min(BALANCE.most, twist))
+      const roll = forward.clone().multiplyScalar(-twistMost / (rollInertia + this.mass * arm.lengthSq()))
+      torque.addScaledVector(roll, rollInertia)
+      force.add(roll.clone().cross(arm).multiplyScalar(this.mass))
     }
 
     this.integrate(dt, force, torque)
@@ -592,6 +608,16 @@ export class Bike {
     )
     this.orientation.normalize()
   }
+}
+
+/**
+ * How far the bars may turn at `speed` m/s, radians. At bar angle a the
+ * bike goes round a circle of wheelbase ÷ tan(a), so it pulls sideways with
+ * speed² × tan(a) ÷ wheelbase, which the tyres hold up to grip × g.
+ */
+export function barLimit(speed: number, p: BikeParams): number {
+  const tyres = Math.atan((WHEELBASE * p.grip * GRAVITY * p.turnAtSpeed) / Math.max(speed * speed, 1e-6))
+  return Math.min(p.barLock, tyres)
 }
 
 /** Moves the bars `by` radians back towards straight, stopping there. */

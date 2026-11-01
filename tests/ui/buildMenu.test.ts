@@ -55,7 +55,8 @@ describe('buildMenu', () => {
 
   it('puts the bike settings on the BIKE page and the rider ones on RIDER', () => {
     expect(tabs.page('BIKE').el.contains(rows.get('frontSpring')!.el)).toBe(true)
-    expect(tabs.page('RIDER').el.contains(rows.get('maxLean')!.el)).toBe(true)
+    for (const id of ['barLock', 'turnAtSpeed', 'maxLean']) expect(tabs.page('BIKE').el.contains(rows.get(id)!.el)).toBe(true)
+    expect(tabs.page('RIDER').el.contains(rows.get('riderReach')!.el)).toBe(true)
     expect(tabs.page('RIDER').el.contains(rows.get('canCrash')!.el)).toBe(true)
   })
 

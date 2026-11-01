@@ -280,6 +280,7 @@ function applyViews(): void {
     springs: store.debug('travel'),
     grip: store.debug('grip'),
     engine: store.debug('peakTorque'),
+    steering: store.debug('barLock') || store.debug('turnAtSpeed'),
     lean: store.debug('maxLean'),
     reach: store.debug('riderReach'),
     body: store.debug('crashLean'),

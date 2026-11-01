@@ -44,10 +44,9 @@ This is the second, rebuilt version.
   stoppie control eases the throttle and front brake so the bike doesn't
   loop over until the rider can lean (step E). Debug shows the gear, the
   clutch and an rpm bar with the shift point.
-- Bike step D, steering and crashing: A/D ask for a turn and a virtual
-  rider steers the bars to lean the bike into it (countersteering, like a
-  real bike). Below walking pace the bars just follow A/D and he puts a
-  foot down. Space stamps on the rear brake and pulls the clutch, so the
+- Bike step D, steering and crashing: A/D steered through a virtual
+  rider who countersteered like on a road bike (replaced: see Direct
+  steering below). Space stamps on the rear brake and pulls the clutch, so the
   rear locks for a powerslide. ↓ / ↑ move the rider back (wheelies) or
   forward onto the bars. The bike can fall over: a rider or handlebar
   point touching the ground, or leaning past the crash lean, is a crash,
@@ -59,6 +58,14 @@ This is the second, rebuilt version.
   lean and bars, where the rider's weight is, the body's contact points
   and each tyre's sideways slip. Every key can be changed on the
   CONTROLS tab.
+- Direct steering (replaces step D's countersteering): A/D turn the bars
+  straight away. Standing or slow they go all the way to the bar lock;
+  faster, only as far as the tyres can hold the turn, so it doesn't slide
+  out. The rider leans as far as the turn needs and holds the bike there,
+  so it doesn't fall over by itself, on slopes too. BIKE → Steering has
+  Bar lock (45°), Turn at speed (70 %: how tight it turns at speed, 100 %
+  = right at the tyres' limit) and Most lean. Debug draws the bars, dim
+  lines for how far they may turn at this speed, and the lean.
 
 ## Controls
 

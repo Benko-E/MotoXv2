@@ -1,6 +1,7 @@
 import { Quaternion, Vector3 } from 'three'
 import { describe, expect, it } from 'vitest'
 import { Bike, DEFAULT_BIKE, type BikeInput, type BikeParams, type Terrain } from '../../src/physics/bike'
+import { makeNoise2D } from '../../src/world/noise'
 
 const STEP = 1 / 500
 const flat: Terrain = { heightAt: () => 0 }
@@ -10,11 +11,21 @@ function input(over: Partial<BikeInput> = {}): BikeInput {
   return { throttle: 0, brake: 0, rearBrake: 0, steer: 0, riderShift: 0, ...over }
 }
 
-function run(bike: Bike, seconds: number, i: BikeInput, each?: () => void): void {
+function run(bike: Bike, seconds: number, i: BikeInput, each?: () => void, ground: Terrain = flat): void {
   for (let n = 0; n < Math.round(seconds / STEP); n++) {
-    bike.step(STEP, i, flat)
+    bike.step(STEP, i, ground)
     each?.()
   }
+}
+
+/** Runs like `run` and returns how far it turned, degrees (+ = right, clockwise from above). */
+function turn(bike: Bike, seconds: number, i: BikeInput, each?: () => void): number {
+  let turned = 0
+  run(bike, seconds, i, () => {
+    turned -= bike.angularVelocity.y * STEP * DEG
+    each?.()
+  })
+  return turned
 }
 
 /** Settled at rest on flat ground, facing north (−z). */
@@ -41,7 +52,75 @@ function heading(bike: Bike): number {
   return Math.atan2(nose.x, -nose.z) * DEG
 }
 
-describe('Bike (step D: steering)', () => {
+describe('Bike: direct steering (A/D turn the bars)', () => {
+  it('standing still, D turns the bars all the way to the bar lock (45°)', () => {
+    const bike = settled()
+    run(bike, 0.5, input({ brake: 1, steer: 1 }))
+    expect(bike.steer * DEG).toBeCloseTo(45, 0)
+  })
+
+  it('the bar lock setting sets how far they go', () => {
+    const bike = settled({ ...DEFAULT_BIKE, barLock: 60 / DEG })
+    run(bike, 0.5, input({ brake: 1, steer: -1 }))
+    expect(bike.steer * DEG).toBeCloseTo(-60, 0)
+  })
+
+  it('at walking pace D turns it round in a tight circle', () => {
+    const bike = rolling(2)
+    const turned = turn(bike, 4, input({ throttle: 0.15, steer: 1 }))
+    expect(turned).toBeGreaterThan(180)
+    expect(bike.crashed).toBe(false)
+  })
+
+  it('holding D at 43 km/h turns right and leans into it, staying up', () => {
+    const bike = rolling(12)
+    const turned = turn(bike, 3, input({ throttle: 0.2, steer: 1 }))
+    expect(turned).toBeGreaterThan(60)
+    expect(bike.lean * DEG).toBeGreaterThan(15)
+    expect(bike.crashed).toBe(false)
+  })
+
+  it('A turns left the same way', () => {
+    const bike = rolling(12)
+    const turned = turn(bike, 3, input({ throttle: 0.2, steer: -1 }))
+    expect(turned).toBeLessThan(-60)
+    expect(bike.lean * DEG).toBeLessThan(-15)
+  })
+
+  it('the faster it goes the less the bars turn, so it never slides out', () => {
+    const bars: number[] = []
+    for (const speed of [8, 15, 25]) {
+      const bike = rolling(speed)
+      let skid = 0
+      const turned = turn(bike, 3, input({ throttle: 0.3, steer: 1 }), () => {
+        skid = Math.max(skid, Math.abs(bike.front.slipAngle), Math.abs(bike.rear.slipAngle))
+      })
+      bars.push(bike.steer)
+      expect(turned).toBeGreaterThan(30)
+      expect(skid * DEG).toBeLessThan(3) // sideways: the tyres follow the bars
+      expect(bike.crashed).toBe(false)
+    }
+    expect(bars[2]).toBeLessThan(bars[1])
+    expect(bars[1]).toBeLessThan(bars[0])
+  })
+
+  it('it never leans past the most-lean setting', () => {
+    const params = { ...DEFAULT_BIKE, maxLean: 20 / DEG }
+    const bike = rolling(12, params)
+    let most = 0
+    run(bike, 3, input({ throttle: 0.3, steer: 1 }), () => (most = Math.max(most, Math.abs(bike.lean))))
+    expect(most * DEG).toBeLessThan(23)
+  })
+
+  it('letting go straightens the bars and stands it back up', () => {
+    const bike = rolling(12)
+    run(bike, 2, input({ throttle: 0.2, steer: 1 }))
+    run(bike, 2, input({ throttle: 0.3 }))
+    expect(Math.abs(bike.steer) * DEG).toBeLessThan(0.5)
+    expect(Math.abs(bike.lean) * DEG).toBeLessThan(4)
+    expect(bike.crashed).toBe(false)
+  })
+
   it('rides straight with no input: stays up and on course', () => {
     const bike = rolling(10)
     let most = 0
@@ -51,63 +130,45 @@ describe('Bike (step D: steering)', () => {
     expect(bike.speed).toBeGreaterThan(6)
   })
 
-  it('holding D at speed leans right and turns right, near the target lean', () => {
-    const bike = rolling(12)
-    run(bike, 3, input({ throttle: 0.2, steer: 1 }))
-    expect(bike.lean * DEG).toBeGreaterThan(20)
-    expect(Math.abs(bike.lean - bike.targetLean) * DEG).toBeLessThan(8)
-    expect(heading(bike)).toBeGreaterThan(30) // clockwise = right
-    expect(bike.crashed).toBe(false)
-  })
-
-  it('A turns left the same way', () => {
-    const bike = rolling(12)
-    run(bike, 3, input({ throttle: 0.2, steer: -1 }))
-    expect(bike.lean * DEG).toBeLessThan(-20)
-    expect(heading(bike)).toBeLessThan(-30)
-  })
-
-  it('letting go stands it back up', () => {
-    const bike = rolling(12)
-    run(bike, 2, input({ throttle: 0.2, steer: 1 }))
-    run(bike, 3, input({ throttle: 0.3 }))
-    expect(Math.abs(bike.lean) * DEG).toBeLessThan(4)
-    expect(bike.crashed).toBe(false)
-  })
-
-  it('starting a right turn steers the bars left first (countersteer)', () => {
-    const bike = rolling(12)
-    let leftmost = 0
-    run(bike, 0.3, input({ throttle: 0.3, steer: 1 }), () => (leftmost = Math.min(leftmost, bike.steer)))
-    expect(leftmost).toBeLessThan(-0.005)
-  })
-
-  it('at walking pace the bars follow A directly and it stays up', () => {
-    const bike = rolling(1.5)
-    let leftmost = 0
-    run(bike, 2, input({ throttle: 0.15, steer: -1 }), () => (leftmost = Math.min(leftmost, bike.steer)))
-    expect(leftmost * DEG).toBeLessThan(-20)
-    expect(Math.abs(bike.lean) * DEG).toBeLessThan(15)
-    expect(heading(bike)).toBeLessThan(-10)
-  })
-
-  it('holding W and D together at speed stays up (he keeps the rear from spinning loose)', () => {
-    for (const speed of [12, 20, 30]) {
-      const bike = rolling(speed)
-      run(bike, 4, input({ throttle: 1, steer: 1 }))
+  it('riding straight up, down and across gentle rolling slopes with no steering, it stays up', () => {
+    const noise = makeNoise2D(7)
+    const swells = (x: number, z: number) => 6 * noise(x / 60, z / 60) + 0.3 * noise(x / 6, z / 6)
+    const grounds: Terrain[] = [
+      { heightAt: (x, z) => swells(x, z) - 0.1 * z }, // up
+      { heightAt: (x, z) => swells(x, z) + 0.1 * z }, // down
+      { heightAt: (x, z) => swells(x, z) + 0.1 * x }, // across, tipping left
+      { heightAt: (x, z) => swells(x, z) - 0.1 * x }, // across, tipping right
+    ]
+    for (const ground of grounds) {
+      const bike = new Bike(DEFAULT_BIKE)
+      bike.drop(0, 0, 0, 0.05, ground)
+      run(bike, 1, input({ brake: 1 }), undefined, ground)
+      let most = 0
+      run(bike, 8, input({ throttle: 0.5 }), () => (most = Math.max(most, Math.abs(bike.lean))), ground)
       expect(bike.crashed).toBe(false)
-      expect(heading(bike)).toBeGreaterThan(10) // turning right, wider the faster
+      expect(most * DEG).toBeLessThan(10)
+      expect(bike.speed).toBeGreaterThan(5)
     }
   })
 
-  it('from a standstill, W then D: stays up', () => {
-    const bike = settled()
-    run(bike, 2.5, input({ throttle: 1 }))
-    run(bike, 8, input({ throttle: 1, steer: 1 }))
-    expect(bike.crashed).toBe(false)
+  it('holding W and D together at speed stays up', () => {
+    for (const speed of [12, 20, 30]) {
+      const bike = rolling(speed)
+      const turned = turn(bike, 4, input({ throttle: 1, steer: 1 }))
+      expect(bike.crashed).toBe(false)
+      expect(turned).toBeGreaterThan(10)
+    }
   })
 
-  it('grabbing both brakes mid-turn at 58 km/h and letting go of D: he eases the brakes, stays up and stops', () => {
+  it('from a standstill, W then D: stays up and turns', () => {
+    const bike = settled()
+    run(bike, 2.5, input({ throttle: 1 }))
+    const turned = turn(bike, 8, input({ throttle: 1, steer: 1 }))
+    expect(bike.crashed).toBe(false)
+    expect(turned).toBeGreaterThan(90)
+  })
+
+  it('grabbing both brakes mid-turn at 58 km/h and letting go of D: stays up and stops', () => {
     const bike = rolling(16)
     run(bike, 2.5, input({ throttle: 0.2, steer: 1 }))
     run(bike, 4, input({ brake: 1 }))
@@ -123,15 +184,6 @@ describe('Bike (step D: steering)', () => {
     run(bike, 0.3, input({ steer: 1 }))
     expect(bike.front.contact).toBe(false)
     expect(Math.abs(bike.steer) * DEG).toBeLessThan(1)
-  })
-
-  it('with Can crash off, hard turns never lean past the most-lean setting', () => {
-    const params = { ...DEFAULT_BIKE, canCrash: false, grip: 0.6 }
-    const bike = rolling(20, params)
-    let most = 0
-    run(bike, 4, input({ throttle: 1, steer: 1 }), () => (most = Math.max(most, Math.abs(bike.lean))))
-    expect(most).toBeLessThan(params.maxLean + (5 / DEG))
-    expect(bike.crashed).toBe(false)
   })
 })
 
