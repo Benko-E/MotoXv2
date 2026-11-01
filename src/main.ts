@@ -70,13 +70,19 @@ const controls = { throttle: 0, brake: 0, rearBrake: 0, steer: 0, riderShift: 0 
 let cameraMode: 'follow' | 'free' = 'follow'
 /** The map the bike was dropped on; a new map drops it again. */
 let bikeGround: Ground | null = null
+/** How high above the ground the bike is dropped (R in free-roam, a new map), m. */
+const DROP_HEIGHT = 3
+/** Speed, bottom left: what to go by when telling how the bike feels. */
+const speedometer = document.createElement('div')
+speedometer.className = 'speedometer'
+ui.append(speedometer)
 
 /** Runs the bike's physics for this frame's time, then draws it. */
 function moveBike(dt: number): void {
   if (!ground) return
   const g = ground
   if (bikeGround !== g) {
-    bike.drop(0, 0, 0, store.get('dropHeight'), g)
+    bike.drop(0, 0, 0, DROP_HEIGHT, g)
     bikeGround = g
   }
   bike.params = readBikeParams(store)
@@ -94,13 +100,14 @@ function moveBike(dt: number): void {
   // Fell off the map or blew up: start again in the middle.
   const half = g.size / 2 + 20
   if (!Number.isFinite(bike.position.y) || Math.abs(bike.position.x) > half || Math.abs(bike.position.z) > half) {
-    bike.drop(0, 0, 0, store.get('dropHeight'), g)
+    bike.drop(0, 0, 0, DROP_HEIGHT, g)
   } else if (bike.position.y < g.heightAt(bike.position.x, bike.position.z) - 3) {
     // Sank through the ground anyway (a very hard hit): drop it again where it is.
     const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(bike.orientation)
-    bike.drop(bike.position.x, bike.position.z, Math.atan2(nose.x, -nose.z), store.get('dropHeight'), g)
+    bike.drop(bike.position.x, bike.position.z, Math.atan2(nose.x, -nose.z), DROP_HEIGHT, g)
   }
-  bikeView.update(bike, dt)
+  bikeView.update(bike)
+  speedometer.textContent = `${Math.round(bike.speed * 3.6)} km/h`
 }
 
 /** Drops the bike where the camera is looking (or the map centre), facing away from the camera. */
@@ -120,7 +127,7 @@ function dropBikeInView(): void {
     }
   }
   if (!found) at.set(0, 0, 0)
-  bike.drop(at.x, at.z, Math.atan2(look.x, -look.z), store.get('dropHeight'), ground)
+  bike.drop(at.x, at.z, Math.atan2(look.x, -look.z), DROP_HEIGHT, ground)
 }
 const rows = menu.rows
 
@@ -276,12 +283,7 @@ function applyViews(): void {
   terrain.setWireframe(store.isOn('wireframe'))
   for (const [part, ids] of HILL_PARTS) hillDebug.setVisible(part, ids.some((id) => store.debug(id)))
   bikeView.setDebug({
-    mass: store.debug('bikeMass'),
-    springs: store.debug('travel'),
-    grip: store.debug('grip'),
-    engine: store.debug('peakTorque'),
-    steering: store.debug('barLock') || store.debug('turnAtSpeed'),
-    lean: store.debug('maxLean'),
+    steering: store.debug('barLock'),
     reach: store.debug('riderReach'),
     body: store.debug('crashLean'),
   })

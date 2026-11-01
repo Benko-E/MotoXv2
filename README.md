@@ -64,8 +64,14 @@ This is the second, rebuilt version.
   out. The rider leans as far as the turn needs and holds the bike there,
   so it doesn't fall over by itself, on slopes too. BIKE → Steering has
   Bar lock (45°), Turn at speed (70 %: how tight it turns at speed, 100 %
-  = right at the tyres' limit) and Most lean. Debug draws the bars, dim
-  lines for how far they may turn at this speed, and the lean.
+  = right at the tyres' limit) and Most lean.
+- Debug for feedback: the BIKE tab holds only Steering and Sound (the
+  suspension, engine, gears, brakes and tyres are fixed in code and tuned
+  on request), and the floating number labels are gone; the speed shows
+  bottom left. Bar lock's checkbox draws the handlebar turning with the
+  bars, the fork down to the front wheel, a yellow arrow where the front
+  wheel points and a cyan one where A/D ask it to point, both growing the
+  further they turn.
 
 ## Controls
 

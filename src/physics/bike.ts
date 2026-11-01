@@ -234,6 +234,8 @@ export class Bike {
   driveTorque = 0
   /** Bar angle, radians (+ = right). */
   steer = 0
+  /** The bar angle A/D ask for, radians: input × bar lock, before the speed limit. */
+  barsAsked = 0
   /** Lean from upright, radians (+ = right), and the lean the rider is aiming for. */
   lean = 0
   targetLean = 0
@@ -281,6 +283,7 @@ export class Bike {
     }
     this.drivetrain.reset()
     this.steer = 0
+    this.barsAsked = 0
     this.lean = 0
     this.targetLean = 0
     this.crashed = false
@@ -322,6 +325,7 @@ export class Bike {
 
     // The rider: off the bike once it's crashed (he's let go of everything).
     const riding = !this.crashed
+    this.barsAsked = riding ? clampSigned(input.steer ?? 0) * p.barLock : 0
     if (!riding) this.steer = straighten(this.steer, LET_GO_RATE * dt)
     // Front wheel off the ground (wheelie, jump): the bars do nothing, so
     // he straightens them for the landing.
@@ -329,7 +333,7 @@ export class Bike {
     else {
       // A/D turn the bars: all the way slow, faster only as far as the tyres hold.
       const most = barLimit(this.speed, p)
-      const wanted = clampSigned(input.steer ?? 0) * most
+      const wanted = (this.barsAsked / p.barLock) * most
       const rate = (Math.max(most, Math.abs(this.steer)) / STEER_TIME) * dt
       this.steer += Math.max(-rate, Math.min(rate, wanted - this.steer))
     }

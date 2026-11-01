@@ -59,6 +59,13 @@ describe('Bike: direct steering (A/D turn the bars)', () => {
     expect(bike.steer * DEG).toBeCloseTo(45, 0)
   })
 
+  it('at speed A/D still ask for the full bar lock; the bars turn only as far as the tyres hold', () => {
+    const bike = rolling(15)
+    run(bike, 0.5, input({ throttle: 0.3, steer: 1 }))
+    expect(bike.barsAsked * DEG).toBeCloseTo(45, 0)
+    expect(bike.steer * DEG).toBeLessThan(5)
+  })
+
   it('the bar lock setting sets how far they go', () => {
     const bike = settled({ ...DEFAULT_BIKE, barLock: 60 / DEG })
     run(bike, 0.5, input({ brake: 1, steer: -1 }))

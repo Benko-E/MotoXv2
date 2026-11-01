@@ -53,9 +53,14 @@ describe('buildMenu', () => {
     for (const s of seen) expect(Number.isInteger(s)).toBe(true)
   })
 
-  it('puts the bike settings on the BIKE page and the rider ones on RIDER', () => {
-    expect(tabs.page('BIKE').el.contains(rows.get('frontSpring')!.el)).toBe(true)
-    for (const id of ['barLock', 'turnAtSpeed', 'maxLean']) expect(tabs.page('BIKE').el.contains(rows.get(id)!.el)).toBe(true)
+  it('the BIKE page has only Steering and Sound', () => {
+    const page = tabs.page('BIKE').el
+    const titles = [...page.querySelectorAll('.menu-section-title')].map((t) => t.textContent)
+    expect(titles).toEqual(['Steering', 'Sound'])
+    for (const id of ['barLock', 'turnAtSpeed', 'maxLean']) expect(page.contains(rows.get(id)!.el)).toBe(true)
+  })
+
+  it('puts the rider settings on RIDER', () => {
     expect(tabs.page('RIDER').el.contains(rows.get('riderReach')!.el)).toBe(true)
     expect(tabs.page('RIDER').el.contains(rows.get('canCrash')!.el)).toBe(true)
   })
