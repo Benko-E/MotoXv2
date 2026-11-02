@@ -1,9 +1,10 @@
-# MotoX
+# MotoX v2
 
 A browser motocross game in the spirit of Motocross Madness 1 and 2.
-This is the second, rebuilt version.
+This is the second, rebuilt version. The current version, the third, lives at
+[Benko-E/MotoX](https://github.com/Benko-E/MotoX) and https://benko-e.github.io/MotoX/.
 
-**Play:** https://benko-e.github.io/MotoX/
+**Play v2:** https://benko-e.github.io/MotoXv2/
 
 ## Where it's at
 
